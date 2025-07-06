@@ -1,0 +1,16 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model Avatar {
+  // 可以显示指定表名 因为默认prisma会将模型名转为小写去进行查询
+  @@map("Avatar")
+  id    Int     @default(autoincrement()) @id
+  avatarUrl String 
+}
