@@ -8,36 +8,27 @@ import { of, forkJoin } from 'rxjs';
 export class FetchService {
   constructor(private readonly httpService: HttpService) {}
   
-  getAll(params: {id: number}): Observable<any> {
-    // return this.httpService.get('/avatar', { params: { id: params?.id | 1 } })
-    //   .pipe(
-    //     map(response => ({
-    //       code: 200,
-    //       message: 'Success',
-    //       data: response.data
-    //     })),
-    //     catchError(error => of({
-    //       code: error.response?.status || 500,
-    //       message: error.message,
-    //       data: null
-    //     }))
-    //   );
-    const requests = Array(20).fill(
-      this.httpService.get('/avatar', { params: { id: params?.id | 1 } }).pipe(
+  getUserInfo(params: {userId: number}): Observable<any> {
+    const requests = [
+      this.httpService.get('/avatar', { params: { userId: params?.userId } }),
+      this.httpService.get('/name', { params: { userId: params?.userId } })
+    ].map(request => 
+      request.pipe(
         map(response => ({
-          status: 'success',
+          code: 200,
+          message: "Success",
           data: response.data
         })),
         catchError(error => of({
-          status: 'error',
+          code: error.response?.status || 500,
           message: error.message
         }))
       )
-    )
+    );
     return forkJoin(requests).pipe(
       map(results => ({
         code: 200,
-        message: 'Batch request completed',
+        message: 'request completed',
         results: results
       }))
     );

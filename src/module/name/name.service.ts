@@ -3,11 +3,10 @@ import { PrismaService } from "../prisma/prisma.service";
 
 
 @Injectable()
-export class AvatarService {
+export class NameService {
   constructor(private prisma: PrismaService) {}
-
-  getAvatar(userId: number) {
-    return this.prisma.avatar.findMany({
+  getName(userId: number) {
+    return this.prisma.name.findMany({
       where: { id: userId },
     });
   }
