@@ -3,12 +3,14 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { LoggingMiddleware } from './middleware/logging.middleware';
 import { AvatarModule } from './module/avatar/avatar.module';
-import { PrismaModule } from './module/prisma/prisma.module'
+import { PrismaModule } from './module/prisma/prisma.module';
+import { NameModule } from './module/name/name.module';
 
 @Module({
   imports: [
     PrismaModule, 
     AvatarModule, 
+    NameModule,
   ],
   controllers: [AppController],
   providers: [AppService],

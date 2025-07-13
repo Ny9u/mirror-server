@@ -14,3 +14,9 @@ model Avatar {
   id    Int     @default(autoincrement()) @id
   avatarUrl String 
 }
+
+model Name {
+  @@map("Name")
+  id    Int     @default(autoincrement()) @id
+  userName String 
+}
