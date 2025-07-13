@@ -5,7 +5,7 @@ import { NameService } from "./name.service";
 export class NameController {
   constructor(private readonly nameService: NameService) {}
   @Get()
-  getName(@Query('id',ParseIntPipe) id: number) {
-    return this.nameService.getName(id);
+  getName(@Query('userId',ParseIntPipe) userId: number) {
+    return this.nameService.getName(userId);
   }
 }

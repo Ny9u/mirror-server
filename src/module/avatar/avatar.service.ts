@@ -6,9 +6,9 @@ import { PrismaService } from "../prisma/prisma.service";
 export class AvatarService {
   constructor(private prisma: PrismaService) {}
 
-  getAvatar(id: number) {
+  getAvatar(userId: number) {
     return this.prisma.avatar.findMany({
-      where: { id },
+      where: { id: userId },
     });
   }
 }

@@ -5,9 +5,9 @@ import { PrismaService } from "../prisma/prisma.service";
 @Injectable()
 export class NameService {
   constructor(private prisma: PrismaService) {}
-  getName(id: number) {
+  getName(userId: number) {
     return this.prisma.name.findMany({
-      where: { id },
+      where: { id: userId },
     });
   }
 }
