@@ -7,7 +7,7 @@ export class AvatarController{
   constructor(private readonly avatarService: AvatarService) {}
 
   @Get()
-  getAvatar(@Query('id',ParseIntPipe) userId: number) {
-    return this.avatarService.getAvatar(userId)
+  getAvatar(@Query('userId', ParseIntPipe) userId: number) {
+    return this.avatarService.getAvatar(userId);
   }
 }
