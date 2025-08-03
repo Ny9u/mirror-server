@@ -3,16 +3,18 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { LoggingMiddleware } from './middleware/logging.middleware';
 import { AvatarModule } from './module/avatar/avatar.module';
-import { PrismaModule } from './module/prisma/prisma.module'
+import { PrismaModule } from './module/prisma/prisma.module';
 import { FetchModule } from './module/fetch/fetch.module';
 import { NameModule } from './module/name/name.module';
+import { RedisModule } from './module/redis/redis.module';
 
 @Module({
   imports: [
-    PrismaModule, 
-    AvatarModule, 
+    PrismaModule,
+    AvatarModule,
     FetchModule,
     NameModule,
+    RedisModule
   ],
   controllers: [AppController],
   providers: [AppService],
