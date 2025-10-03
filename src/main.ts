@@ -1,10 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { config } from 'dotenv';
+import { GlobalExceptionFilter } from './filters/error.filter';
 
 async function bootstrap() {
   // 创建Nest应用(根模块)
   const app = await NestFactory.create(AppModule);
+  app.useGlobalFilters(new GlobalExceptionFilter());
   app.setGlobalPrefix('api/v1');
   // 启用CORS
   app.enableCors({

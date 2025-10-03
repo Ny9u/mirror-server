@@ -16,6 +16,13 @@ export class LoggingMiddleware implements NestMiddleware {
     const start = Date.now();
     const { method, originalUrl, ip, headers } = req;
     const userAgent = headers['user-agent'] || '';
+    let requestId = req.headers['x-request-id'] as string || '';
+
+    if (!requestId) {
+      requestId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+      (req as Request & { requestId: string }).requestId = requestId;
+      res.setHeader('X-Request-Id', requestId);
+    }
     
     // 处理请求完成事件
     res.on('finish', () => {
@@ -30,7 +37,8 @@ export class LoggingMiddleware implements NestMiddleware {
         ip,
         userAgent,
         statusCode,
-        duration: `${duration}ms`
+        duration: `${duration}ms`,
+        requestId
       };
       
       if (statusCode >= 500) {
@@ -42,25 +50,7 @@ export class LoggingMiddleware implements NestMiddleware {
       }
     });
 
-    try {
-      next();
-    } catch (error) {
-      const duration = Date.now() - start;
-      const errorLogData = {
-        time: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
-        method,
-        url: originalUrl,
-        ip,
-        userAgent,
-        error: {
-          message: error instanceof Error ? error.message : 'Unknown error'
-        },
-        duration: `${duration}ms`
-      };
-      
-      this.log(LogLevel.ERROR, errorLogData);
-      throw error;
-    }
+    next();
   }
   
   /**
