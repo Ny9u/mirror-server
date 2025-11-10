@@ -1,4 +1,4 @@
-export interface Avatar {
+export class AvatarDto {
   id: number;
   avatarUrl: string;
 }

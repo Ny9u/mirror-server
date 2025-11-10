@@ -1,4 +1,4 @@
-export interface Name {
+export class NameDto {
   id: number;
   userName: string;
 }
