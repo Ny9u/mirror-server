@@ -7,6 +7,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  @@map("User")
+  id        Int      @default(autoincrement()) @id
+  username  String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
 
 model Avatar {
   // 可以显示指定表名 因为默认prisma会将模型名转为小写去进行查询
