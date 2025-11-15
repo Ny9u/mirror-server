@@ -54,7 +54,7 @@ export class ImageProcessingService {
           fit: 'inside',
           withoutEnlargement: true 
         })
-        .jpeg({ quality: 50 })
+        .jpeg({ quality: 80 })
         .toBuffer();
       
       // 保存处理后的图片到缓存目录
