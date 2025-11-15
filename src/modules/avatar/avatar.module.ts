@@ -1,14 +1,12 @@
 import { Module } from "@nestjs/common";
-import { AvatarController } from "./avatar.controller";
 import { AvatarService } from "./avatar.service";
-import { PrismaModule } from '../prisma/prisma.module';
-import { ImageProcessingService } from './image-processing.service';
+import { AvatarController } from "./avatar.controller";
+import { PrismaService } from "../prisma/prisma.service";
+import { ImageProcessingService } from "./image-processing.service";
 
 @Module({
-  imports: [PrismaModule],
   controllers: [AvatarController],
-  providers: [AvatarService, ImageProcessingService],
-  exports: [AvatarService, ImageProcessingService]
+  providers: [AvatarService, PrismaService, ImageProcessingService],
+  exports: [AvatarService],
 })
-
 export class AvatarModule {}
