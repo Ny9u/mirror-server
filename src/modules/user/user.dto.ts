@@ -16,6 +16,10 @@ export class LoginUserDto {
   password: string;
 }
 
+export class UpdateUserDto {
+  username: string;
+}
+
 export class AuthResponseDto {
   user: UserDto;
   token?: string;

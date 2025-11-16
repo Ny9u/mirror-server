@@ -1,7 +1,10 @@
-import { Controller, Post, Body, Get, Query } from "@nestjs/common";
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+import { Controller, Post, Body, Get, Query, UseGuards, Request, HttpStatus, HttpCode } from "@nestjs/common";
 import { UserService } from "./user.service";
-import { UserDto, RegisterUserDto, LoginUserDto, AuthResponseDto } from "./user.dto";
+import { UserDto, RegisterUserDto, LoginUserDto, AuthResponseDto, UpdateUserDto } from "./user.dto";
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { AuthGuard } from "@nestjs/passport";
 
 @ApiTags('user')
 @Controller("user")
@@ -30,5 +33,19 @@ export class UserController {
   @ApiResponse({ status: 404, description: '用户不存在' })
   async getUser(@Query("id") id: number): Promise<UserDto | null> {
     return this.userService.findById(id);
+  }
+
+  @Post("update")
+  @UseGuards(AuthGuard('jwt'))
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '更新用户信息（仅用户名）' })
+  @ApiResponse({ status: 200, description: '用户信息更新成功' })
+  @ApiResponse({ status: 401, description: '未授权或令牌无效' })
+  async updateUser(
+    @Request() req,
+    @Body() updateUser: UpdateUserDto,
+  ): Promise<UserDto> {
+    const userId = req.user.id;
+    return this.userService.updateUsername(userId, updateUser);
   }
 }

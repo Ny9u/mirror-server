@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException, ConflictException, Inject, forwardRef } from "@nestjs/common";
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from "../prisma/prisma.service";
-import { UserDto, RegisterUserDto, LoginUserDto, AuthResponseDto } from "./user.dto";
+import { UserDto, RegisterUserDto, LoginUserDto, AuthResponseDto, UpdateUserDto } from "./user.dto";
 import * as bcrypt from 'bcrypt';
 import { AvatarService } from "../avatar/avatar.service";
 import { RefreshTokenService } from "../auth/services/refresh-token.service";
@@ -102,6 +102,22 @@ export class UserService {
       id: user.id,
       username: user.username,
       email: user.email,
+    };
+  }
+
+  async updateUsername(userId: number, updateUser: UpdateUserDto): Promise<UserDto> {
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        username: updateUser.username,
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      id: updatedUser.id,
+      username: updatedUser.username,
+      email: updatedUser.email,
     };
   }
 }
