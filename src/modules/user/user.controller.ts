@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Controller, Post, Body, Get, Query, UseGuards, Request, HttpStatus, HttpCode } from "@nestjs/common";
 import { UserService } from "./user.service";
-import { UserDto, RegisterUserDto, LoginUserDto, AuthResponseDto, UpdateUserDto } from "./user.dto";
+import { UserDto, RegisterUserDto, LoginUserDto, AuthResponseDto, UpdateUserDto, UpdatePasswordDto } from "./user.dto";
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from "@nestjs/passport";
 
@@ -35,7 +35,7 @@ export class UserController {
     return this.userService.findById(id);
   }
 
-  @Post("update")
+  @Post("updateInfo")
   @UseGuards(AuthGuard('jwt'))
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '更新用户信息（仅用户名）' })
@@ -47,5 +47,20 @@ export class UserController {
   ): Promise<UserDto> {
     const userId = req.user.id;
     return this.userService.updateUsername(userId, updateUser);
+  }
+
+  @Post("updatePassword")
+  @UseGuards(AuthGuard('jwt'))
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '修改用户密码' })
+  @ApiResponse({ status: 200, description: '密码修改成功' })
+  @ApiResponse({ status: 400, description: '旧密码错误或新密码与旧密码相同' })
+  @ApiResponse({ status: 401, description: '未授权或令牌无效' })
+  async updatePassword(
+    @Request() req,
+    @Body() updatePassword: UpdatePasswordDto,
+  ): Promise<void> {
+    const userId = req.user.id;
+    return this.userService.updatePassword(userId, updatePassword);
   }
 }

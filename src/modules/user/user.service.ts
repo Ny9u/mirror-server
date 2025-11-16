@@ -1,7 +1,7 @@
-import { Injectable, UnauthorizedException, ConflictException, Inject, forwardRef } from "@nestjs/common";
+import { Injectable, UnauthorizedException, ConflictException, Inject, forwardRef, BadRequestException } from "@nestjs/common";
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from "../prisma/prisma.service";
-import { UserDto, RegisterUserDto, LoginUserDto, AuthResponseDto, UpdateUserDto } from "./user.dto";
+import { UserDto, RegisterUserDto, LoginUserDto, AuthResponseDto, UpdateUserDto, UpdatePasswordDto } from "./user.dto";
 import * as bcrypt from 'bcrypt';
 import { AvatarService } from "../avatar/avatar.service";
 import { RefreshTokenService } from "../auth/services/refresh-token.service";
@@ -119,5 +119,33 @@ export class UserService {
       username: updatedUser.username,
       email: updatedUser.email,
     };
+  }
+
+  async updatePassword(userId: number, updatePassword: UpdatePasswordDto): Promise<void> {
+
+    // 获取当前用户信息
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('用户不存在');
+    }
+
+    // 验证旧密码是否正确
+    const isOldPasswordValid = await bcrypt.compare(updatePassword.oldPassword, user.password);
+    if (!isOldPasswordValid) {
+      throw new BadRequestException('密码错误');
+    }
+
+    const hashedNewPassword = await bcrypt.hash(updatePassword.newPassword, 12);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedNewPassword,
+        updatedAt: new Date(),
+      },
+    });
   }
 }

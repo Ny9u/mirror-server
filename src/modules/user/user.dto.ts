@@ -20,6 +20,11 @@ export class UpdateUserDto {
   username: string;
 }
 
+export class UpdatePasswordDto {
+  oldPassword: string;
+  newPassword: string;
+}
+
 export class AuthResponseDto {
   user: UserDto;
   token?: string;
