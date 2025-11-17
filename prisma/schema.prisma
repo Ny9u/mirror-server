@@ -23,9 +23,3 @@ model Avatar {
   id    Int  @id
   avatarUrl String 
 }
-
-model Name {
-  @@map("Name")
-  id    Int     @default(autoincrement()) @id
-  userName String 
-}

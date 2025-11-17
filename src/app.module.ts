@@ -4,7 +4,6 @@ import { AppService } from './app.service';
 import { LoggingMiddleware } from './middleware/logging.middleware';
 import { AvatarModule } from './modules/avatar/avatar.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
-import { NameModule } from './modules/name/name.module';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 
@@ -12,7 +11,6 @@ import { AuthModule } from './modules/auth/auth.module';
   imports: [
     PrismaModule, 
     AvatarModule, 
-    NameModule,
     UserModule,
     AuthModule,
   ],
