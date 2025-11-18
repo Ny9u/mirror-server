@@ -1,4 +1,5 @@
-import { Injectable, UnauthorizedException, ConflictException, Inject, forwardRef, BadRequestException } from "@nestjs/common";
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+import { Injectable, UnauthorizedException, ConflictException, Inject, forwardRef, BadRequestException, NotFoundException } from "@nestjs/common";
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from "../prisma/prisma.service";
 import { UserDto, RegisterUserDto, LoginUserDto, AuthResponseDto, UpdateUserDto, UpdatePasswordDto } from "./user.dto";
@@ -147,5 +148,32 @@ export class UserService {
         updatedAt: new Date(),
       },
     });
+  }
+  /**
+   * 删除用户及其头像数据
+   * @param userId 要删除的用户ID
+   */
+  async deleteAccount(userId: number): Promise<void> {
+    // 检查用户是否存在
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    try {
+      await this.prisma.$transaction([
+        this.prisma.avatar.deleteMany({
+          where: { id: userId },
+        }),
+        this.prisma.user.delete({
+          where: { id: userId },
+        }),
+      ]);
+    } catch (error) {
+      throw new Error(`删除用户失败: ${error.message}`);
+    }
   }
 }

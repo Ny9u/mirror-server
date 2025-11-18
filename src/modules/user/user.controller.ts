@@ -63,4 +63,16 @@ export class UserController {
     const userId = req.user.id;
     return this.userService.updatePassword(userId, updatePassword);
   }
+
+  @Post("deleteAccount")
+  @UseGuards(AuthGuard('jwt'))
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '删除用户账户' })
+  @ApiResponse({ status: 200, description: '用户删除成功' })
+  @ApiResponse({ status: 401, description: '未授权或令牌无效' })
+  @ApiResponse({ status: 404, description: '用户不存在' })
+  async deleteAccount(@Request() req): Promise<void> {
+    const userId = req.user.id;
+    return this.userService.deleteAccount(userId);
+  }
 }
