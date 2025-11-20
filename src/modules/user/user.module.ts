@@ -8,6 +8,8 @@ import { jwtConfig } from '../../config/jwt.config';
 import { AvatarModule } from '../avatar/avatar.module';
 import { AuthModule } from "../auth/auth.module";
 import { EncryptionModule } from "../encryption/encryption.module";
+import { VerificationService } from "../email/verification.service";
+import { EmailModule } from "../email/email.module";
 
 @Module({
   imports: [
@@ -16,9 +18,10 @@ import { EncryptionModule } from "../encryption/encryption.module";
     AvatarModule,
     forwardRef(() => AuthModule),
     EncryptionModule,
+    EmailModule,
   ],
   controllers: [UserController],
-  providers: [UserService, JwtStrategy],
-  exports: [UserService, JwtModule, JwtStrategy],
+  providers: [UserService, JwtStrategy, VerificationService],
+  exports: [UserService, JwtModule, JwtStrategy, VerificationService],
 })
 export class UserModule {}

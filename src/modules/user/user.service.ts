@@ -9,6 +9,7 @@ import { AvatarService } from "../avatar/avatar.service";
 import { RefreshTokenService } from "../auth/services/refresh-token.service";
 import { JwtPayload } from "../../config/jwt.strategy";
 import { EncryptionService } from "../encryption/encryption.service";
+import { VerificationService } from "../email/verification.service";
 
 @Injectable()
 export class UserService {
@@ -18,6 +19,7 @@ export class UserService {
     private jwtService: JwtService,
     private avatarService: AvatarService,
     private encryptionService: EncryptionService,
+    private verificationService: VerificationService,
     @Inject(forwardRef(() => RefreshTokenService))
     private readonly refreshTokenService: RefreshTokenService,
   ) {}
@@ -27,7 +29,6 @@ export class UserService {
     try {
       const decryptedStr = this.encryptionService.decrypt(registerUser);
       try {
-        // 先检查解密后的数据是否已经是对象
         if (typeof decryptedStr === 'object') {
           decryptedData = decryptedStr;
         } else {
@@ -35,7 +36,7 @@ export class UserService {
         }
         
         // 验证必要字段
-        if (!decryptedData.username || !decryptedData.email || !decryptedData.password) {
+        if (!decryptedData.username || !decryptedData.email || !decryptedData.password|| !decryptedData.verificationCode) {
           throw new BadRequestException('解密数据格式错误: 缺少必要的字段');
         }
       } catch (jsonError) {
@@ -51,6 +52,12 @@ export class UserService {
 
     if (existingUser) {
       throw new ConflictException('该邮箱已注册');
+    }
+
+    // 验证验证码
+    const isValid = this.verificationService.verifyCode(decryptedData.email, decryptedData.verificationCode);
+    if (!isValid) {
+      throw new BadRequestException('验证码错误');
     }
 
     // 哈希密码
@@ -219,10 +226,6 @@ export class UserService {
       },
     });
   }
-  /**
-   * 删除用户及其头像数据
-   * @param userId 要删除的用户ID
-   */
   async deleteAccount(userId: number): Promise<void> {
     // 检查用户是否存在
     const user = await this.prisma.user.findUnique({
@@ -245,5 +248,21 @@ export class UserService {
     } catch (error) {
       throw new Error(`删除用户失败: ${error.message}`);
     }
+  }
+
+  async sendVerificationCode(email: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (user) {
+      throw new ConflictException('该邮箱已被使用');
+    }
+
+    await this.verificationService.sendVerificationCode(email);
+  }
+
+  verifyCode(email: string, code: string): boolean {
+    return this.verificationService.verifyCode(email, code);
   }
 }

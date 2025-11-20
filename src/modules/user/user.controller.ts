@@ -3,7 +3,7 @@
 import { Controller, Post, Body, Get, Query, UseGuards, Request, HttpStatus, HttpCode, Req, RawBodyRequest } from "@nestjs/common";
 import { Request as ExpressRequest } from 'express';
 import { UserService } from "./user.service";
-import { UserDto, AuthResponseDto, UpdateUserDto } from "./user.dto";
+import { UserDto, AuthResponseDto, UpdateUserDto, VerificationCodeDto, VerifyCodeDto } from "./user.dto";
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from "@nestjs/passport";
 
@@ -109,5 +109,23 @@ export class UserController {
   async deleteAccount(@Request() req): Promise<void> {
     const userId = req.user.id;
     return this.userService.deleteAccount(userId);
+  }
+
+  @Post("sendVerificationCode")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '发送邮箱验证码' })
+  @ApiResponse({ status: 200, description: '验证码发送成功' })
+  @ApiResponse({ status: 400, description: '请求参数错误' })
+  async sendVerificationCode(@Body() verificationCodeDto: VerificationCodeDto): Promise<void> {
+    return this.userService.sendVerificationCode(verificationCodeDto.email);
+  }
+
+  @Post("verifyCode")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '验证邮箱验证码' })
+  @ApiResponse({ status: 200, description: '验证码验证成功' })
+  @ApiResponse({ status: 400, description: '验证码错误或已过期' })
+  verifyCode(@Body() verifyCodeDto: VerifyCodeDto): boolean {
+    return this.userService.verifyCode(verifyCodeDto.email, verifyCodeDto.code);
   }
 }

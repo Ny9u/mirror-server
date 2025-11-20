@@ -9,6 +9,7 @@ export class RegisterUserDto {
   username: string;
   email: string;
   password: string;
+  verificationCode: string;
 }
 
 export class LoginUserDto {
@@ -23,6 +24,15 @@ export class UpdateUserDto {
 export class UpdatePasswordDto {
   oldPassword: string;
   newPassword: string;
+}
+
+export class VerificationCodeDto {
+  email: string;
+}
+
+export class VerifyCodeDto {
+  email: string;
+  code: string;
 }
 
 export class AuthResponseDto {
