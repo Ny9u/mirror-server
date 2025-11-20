@@ -6,6 +6,7 @@ import { AvatarModule } from './modules/avatar/avatar.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { EncryptionModule } from './modules/encryption/encryption.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { AuthModule } from './modules/auth/auth.module';
     AvatarModule, 
     UserModule,
     AuthModule,
+    EncryptionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

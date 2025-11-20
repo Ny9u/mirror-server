@@ -42,6 +42,24 @@ async function bootstrap() {
   // 创建Nest应用(根模块)
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   
+  // 配置raw body中间件，用于处理加密数据的用户相关接口
+  const routesNeedingRawBody = new Set(['/register', '/login', '/updatePassword']);
+  app.use('/api/v1/user', (req, res, next) => {
+    if (routesNeedingRawBody.has(req.path) && req.headers['content-type'] === 'text/plain') {
+      req.setEncoding('utf8');
+      let data = '';
+      req.on('data', chunk => {
+        data += chunk;
+      });
+      req.on('end', () => {
+        req.rawBody = data;
+        next();
+      });
+    } else {
+      next();
+    }
+  });
+  
   // 配置静态文件服务
   app.use('/uploads', (req, res, next) => {
     const requestedPath = req.path;

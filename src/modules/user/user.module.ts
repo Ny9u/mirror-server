@@ -7,6 +7,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { jwtConfig } from '../../config/jwt.config';
 import { AvatarModule } from '../avatar/avatar.module';
 import { AuthModule } from "../auth/auth.module";
+import { EncryptionModule } from "../encryption/encryption.module";
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AuthModule } from "../auth/auth.module";
     JwtModule.register(jwtConfig),
     AvatarModule,
     forwardRef(() => AuthModule),
+    EncryptionModule,
   ],
   controllers: [UserController],
   providers: [UserService, JwtStrategy],

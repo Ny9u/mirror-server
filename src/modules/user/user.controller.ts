@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { Controller, Post, Body, Get, Query, UseGuards, Request, HttpStatus, HttpCode } from "@nestjs/common";
+import { Controller, Post, Body, Get, Query, UseGuards, Request, HttpStatus, HttpCode, Req, RawBodyRequest } from "@nestjs/common";
+import { Request as ExpressRequest } from 'express';
 import { UserService } from "./user.service";
-import { UserDto, RegisterUserDto, LoginUserDto, AuthResponseDto, UpdateUserDto, UpdatePasswordDto } from "./user.dto";
+import { UserDto, AuthResponseDto, UpdateUserDto } from "./user.dto";
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from "@nestjs/passport";
 
@@ -15,16 +16,38 @@ export class UserController {
   @ApiOperation({ summary: '用户注册' })
   @ApiResponse({ status: 201, description: '用户注册成功' })
   @ApiResponse({ status: 400, description: '请求参数错误' })
-  async register(@Body() registerUser: RegisterUserDto): Promise<AuthResponseDto> {
-    return this.userService.register(registerUser);
+  async register(@Req() req: RawBodyRequest<ExpressRequest>): Promise<AuthResponseDto> {
+    // 获取原始请求体（Buffer格式）
+    const rawBody = req.rawBody;
+    let encryptedData: string;
+    // 将Buffer转换为字符串
+    if (Buffer.isBuffer(rawBody)) {
+      encryptedData = rawBody.toString('utf-8');
+    } else if (typeof rawBody === 'string') {
+      encryptedData = rawBody;
+    } else {
+      throw new Error('非法的请求体格式');
+    }
+    return this.userService.register(encryptedData);
   }
 
   @Post("login")
   @ApiOperation({ summary: '用户登录' })
   @ApiResponse({ status: 200, description: '登录成功' })
   @ApiResponse({ status: 401, description: '用户名或密码错误' })
-  async login(@Body() loginUser: LoginUserDto): Promise<AuthResponseDto> {
-    return this.userService.login(loginUser);
+  async login(@Req() req: RawBodyRequest<ExpressRequest>): Promise<AuthResponseDto> {
+    // 获取原始请求体（Buffer格式）
+    const rawBody = req.rawBody;
+    let encryptedData: string;
+    // 将Buffer转换为字符串
+    if (Buffer.isBuffer(rawBody)) {
+      encryptedData = rawBody.toString('utf-8');
+    } else if (typeof rawBody === 'string') {
+      encryptedData = rawBody;
+    } else {
+      throw new Error('非法的请求体格式');
+    }
+    return this.userService.login(encryptedData);
   }
 
   @Get()
@@ -58,10 +81,22 @@ export class UserController {
   @ApiResponse({ status: 401, description: '未授权或令牌无效' })
   async updatePassword(
     @Request() req,
-    @Body() updatePassword: UpdatePasswordDto,
+    @Req() rawReq: RawBodyRequest<ExpressRequest>,
   ): Promise<void> {
+    // 获取原始请求体（Buffer格式）
+    const rawBody = rawReq.rawBody;
+    let encryptedData: string;
+    // 将Buffer转换为字符串
+    if (Buffer.isBuffer(rawBody)) {
+      encryptedData = rawBody.toString('utf-8');
+    } else if (typeof rawBody === 'string') {
+      encryptedData = rawBody;
+    } else {
+      throw new Error('非法的请求体格式');
+    }
+    
     const userId = req.user.id;
-    return this.userService.updatePassword(userId, updatePassword);
+    return this.userService.updatePassword(userId, encryptedData);
   }
 
   @Post("deleteAccount")
