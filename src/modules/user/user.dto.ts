@@ -26,6 +26,11 @@ export class UpdatePasswordDto {
   newPassword: string;
 }
 
+export class ResetPasswordDto {
+  email: string;
+  password: string;
+}
+
 export class VerificationCodeDto {
   email: string;
 }

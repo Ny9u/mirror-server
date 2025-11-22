@@ -43,7 +43,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   
   // 配置raw body中间件，用于处理加密数据的用户相关接口
-  const routesNeedingRawBody = new Set(['/register', '/login', '/updatePassword']);
+  const routesNeedingRawBody = new Set(['/register', '/login', '/updatePassword', '/resetPassword']);
   app.use('/api/v1/user', (req, res, next) => {
     if (routesNeedingRawBody.has(req.path) && req.headers['content-type'] === 'text/plain') {
       req.setEncoding('utf8');

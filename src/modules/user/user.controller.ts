@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { Controller, Post, Body, Get, Query, UseGuards, Request, HttpStatus, HttpCode, Req, RawBodyRequest } from "@nestjs/common";
+import { Controller, Post, Body, Get, Query, UseGuards, Request, HttpStatus, HttpCode, Req, RawBodyRequest, BadRequestException } from "@nestjs/common";
 import { Request as ExpressRequest } from 'express';
 import { UserService } from "./user.service";
 import { UserDto, AuthResponseDto, UpdateUserDto, VerificationCodeDto, VerifyCodeDto } from "./user.dto";
@@ -26,7 +26,7 @@ export class UserController {
     } else if (typeof rawBody === 'string') {
       encryptedData = rawBody;
     } else {
-      throw new Error('非法的请求体格式');
+      throw new BadRequestException('非法的请求体格式');
     }
     return this.userService.register(encryptedData);
   }
@@ -45,7 +45,7 @@ export class UserController {
     } else if (typeof rawBody === 'string') {
       encryptedData = rawBody;
     } else {
-      throw new Error('非法的请求体格式');
+      throw new BadRequestException('非法的请求体格式');
     }
     return this.userService.login(encryptedData);
   }
@@ -92,7 +92,7 @@ export class UserController {
     } else if (typeof rawBody === 'string') {
       encryptedData = rawBody;
     } else {
-      throw new Error('非法的请求体格式');
+      throw new BadRequestException('非法的请求体格式');
     }
     
     const userId = req.user.id;
@@ -124,8 +124,30 @@ export class UserController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '验证邮箱验证码' })
   @ApiResponse({ status: 200, description: '验证码验证成功' })
-  @ApiResponse({ status: 400, description: '验证码错误或已过期' })
+  @ApiResponse({ status: 400, description: '验证码错误' })
   verifyCode(@Body() verifyCodeDto: VerifyCodeDto): boolean {
     return this.userService.verifyCode(verifyCodeDto.email, verifyCodeDto.code);
+  }
+
+  @Post('resetPassword')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '重置用户密码' })
+  @ApiResponse({ status: 200, description: '密码重置成功' })
+  @ApiResponse({ status: 400, description: '请求参数错误' })
+  async resetPassword(@Req() req: RawBodyRequest<ExpressRequest>): Promise<{ message: string }> {
+    const rawBody = req.rawBody;
+    let encryptedData: string;
+    
+    if (Buffer.isBuffer(rawBody)) {
+      encryptedData = rawBody.toString('utf-8');
+    } else if (typeof rawBody === 'string') {
+      encryptedData = rawBody;
+    } else {
+      throw new BadRequestException('非法的请求体格式');
+    }
+    
+    await this.userService.resetPassword(encryptedData);
+    
+    return { message: '密码重置成功' };
   }
 }

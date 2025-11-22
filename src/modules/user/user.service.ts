@@ -3,7 +3,7 @@
 import { Injectable, UnauthorizedException, ConflictException, Inject, forwardRef, BadRequestException, NotFoundException } from "@nestjs/common";
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from "../prisma/prisma.service";
-import { UserDto, RegisterUserDto, LoginUserDto, AuthResponseDto, UpdateUserDto, UpdatePasswordDto } from "./user.dto";
+import { UserDto, RegisterUserDto, LoginUserDto, AuthResponseDto, UpdateUserDto, UpdatePasswordDto, ResetPasswordDto } from "./user.dto";
 import * as bcrypt from 'bcrypt';
 import { AvatarService } from "../avatar/avatar.service";
 import { RefreshTokenService } from "../auth/services/refresh-token.service";
@@ -251,18 +251,63 @@ export class UserService {
   }
 
   async sendVerificationCode(email: string): Promise<void> {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (user) {
-      throw new ConflictException('该邮箱已被使用');
-    }
-
     await this.verificationService.sendVerificationCode(email);
   }
 
   verifyCode(email: string, code: string): boolean {
-    return this.verificationService.verifyCode(email, code);
+    const isValid = this.verificationService.verifyCode(email, code);
+    if (!isValid) {
+      throw new BadRequestException('验证码错误');
+    }
+    return true;
+  }
+
+  async resetPassword(resetData: string): Promise<void> {
+    let decryptedData: ResetPasswordDto;
+    
+    try {
+      const decryptedStr = this.encryptionService.decrypt(resetData);
+      try {
+        if (typeof decryptedStr === 'object') {
+          decryptedData = decryptedStr;
+        } else {
+          decryptedData = JSON.parse(decryptedStr);
+        }
+        
+        if (!decryptedData.email || !decryptedData.password) {
+          throw new BadRequestException('解密数据格式错误: 缺少必要的字段');
+        }
+      } catch (jsonError) {
+        throw new BadRequestException('解密数据不是有效的JSON格式: ' + jsonError.message);
+      }
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('重置密码数据解密失败: ' + (error.message || '未知错误'));
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: decryptedData.email },
+    });
+
+     if (!user) {
+       throw new NotFoundException('用户不存在');
+     }
+
+     const isSamePassword = await bcrypt.compare(decryptedData.password, user.password);
+     if (isSamePassword) {
+       throw new BadRequestException('新密码不能与当前密码相同');
+     }
+
+    const hashedNewPassword = await bcrypt.hash(decryptedData.password, 12);
+    
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedNewPassword,
+        updatedAt: new Date(),
+      },
+    });
   }
 }
