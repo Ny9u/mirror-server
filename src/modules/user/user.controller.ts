@@ -117,7 +117,8 @@ export class UserController {
   @ApiResponse({ status: 200, description: '验证码发送成功' })
   @ApiResponse({ status: 400, description: '请求参数错误' })
   async sendVerificationCode(@Body() verificationCodeDto: VerificationCodeDto): Promise<void> {
-    return this.userService.sendVerificationCode(verificationCodeDto.email);
+    const type = verificationCodeDto.type || 'register';
+    return this.userService.sendVerificationCode(verificationCodeDto.email, type);
   }
 
   @Post("verifyCode")

@@ -285,10 +285,11 @@ export class UserService {
   /**
    * 发送验证码
    * @param email 用户邮箱地址
+   * @param type 验证码类型，用于区分不同场景（register: 注册, reset: 重置密码）
    * @returns 无返回值
    */
-  async sendVerificationCode(email: string): Promise<void> {
-    await this.verificationService.sendVerificationCode(email);
+  async sendVerificationCode(email: string, type: 'register' | 'reset' = 'register'): Promise<void> {
+    await this.verificationService.sendVerificationCode(email, type);
   }
 
   /**

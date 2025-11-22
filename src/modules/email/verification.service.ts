@@ -45,9 +45,10 @@ export class VerificationService {
   /**
    * 发送验证码
    * @param email 邮箱地址
+   * @param type 验证码类型，用于区分不同场景（register: 注册, reset: 重置密码）
    */
-  async sendVerificationCode(email: string): Promise<void> {
+  async sendVerificationCode(email: string, type: 'register' | 'reset' = 'register'): Promise<void> {
     const code = this.generateVerificationCode(email);
-    await this.emailService.sendVerificationCode(email, code);
+    await this.emailService.sendVerificationCode(email, code, type);
   }
 }
