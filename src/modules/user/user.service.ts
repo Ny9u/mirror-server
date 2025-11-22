@@ -24,6 +24,11 @@ export class UserService {
     private readonly refreshTokenService: RefreshTokenService,
   ) {}
 
+  /**
+   * 用户注册
+   * @param registerUser 加密后的用户注册数据
+   * @returns 包含用户信息的认证响应对象
+   */
   async register(registerUser: string): Promise<AuthResponseDto> {
     let decryptedData: RegisterUserDto;
     try {
@@ -81,6 +86,11 @@ export class UserService {
     };
   }
 
+  /**
+   * 用户登录
+   * @param loginUser 加密后的用户登录数据
+   * @returns 包含用户信息、访问令牌和刷新令牌的认证响应对象
+   */
   async login(loginUser: string): Promise<AuthResponseDto> {
     let decryptedData: LoginUserDto;
     try {
@@ -144,6 +154,11 @@ export class UserService {
     };
   }
 
+  /**
+   * 根据用户ID查找用户
+   * @param userId 用户ID
+   * @returns 用户信息对象，如果用户不存在则返回null
+   */
   async findById(userId: number): Promise<UserDto | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -160,6 +175,12 @@ export class UserService {
     };
   }
 
+  /**
+   * 更新用户名
+   * @param userId 用户ID
+   * @param updateUser 包含新用户名的对象
+   * @returns 更新后的用户信息对象
+   */
   async updateUsername(userId: number, updateUser: UpdateUserDto): Promise<UserDto> {
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
@@ -176,6 +197,12 @@ export class UserService {
     };
   }
 
+  /**
+   * 更新用户密码
+   * @param userId 用户ID
+   * @param updatePassword 加密后的密码更新数据
+   * @returns 无返回值
+   */
   async updatePassword(userId: number, updatePassword: string): Promise<void> {
     // 解密密码
     let decryptedData: UpdatePasswordDto;
@@ -226,6 +253,11 @@ export class UserService {
       },
     });
   }
+  /**
+   * 删除用户账户
+   * @param userId 用户ID
+   * @returns 无返回值
+   */
   async deleteAccount(userId: number): Promise<void> {
     // 检查用户是否存在
     const user = await this.prisma.user.findUnique({
@@ -250,10 +282,21 @@ export class UserService {
     }
   }
 
+  /**
+   * 发送验证码
+   * @param email 用户邮箱地址
+   * @returns 无返回值
+   */
   async sendVerificationCode(email: string): Promise<void> {
     await this.verificationService.sendVerificationCode(email);
   }
 
+  /**
+   * 验证验证码
+   * @param email 用户邮箱地址
+   * @param code 验证码
+   * @returns 验证成功返回true
+   */
   verifyCode(email: string, code: string): boolean {
     const isValid = this.verificationService.verifyCode(email, code);
     if (!isValid) {
@@ -262,6 +305,11 @@ export class UserService {
     return true;
   }
 
+  /**
+   * 重置密码
+   * @param resetData 加密后的密码重置数据
+   * @returns 无返回值
+   */
   async resetPassword(resetData: string): Promise<void> {
     let decryptedData: ResetPasswordDto;
     

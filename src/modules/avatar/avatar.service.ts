@@ -24,6 +24,11 @@ export class AvatarService {
     }
   }
 
+  /**
+   * 获取用户头像信息
+   * @param userId 用户ID
+   * @returns 头像信息对象，包含头像ID和压缩后的头像URL，如果用户没有头像则返回null
+   */
   async getAvatar(userId: number): Promise<AvatarDto | null> {
     const avatar = await this.prisma.avatar.findFirst({
       where: { id: userId },
@@ -36,6 +41,11 @@ export class AvatarService {
     }: null;
   }
   
+  /**
+   * 获取用户头像URL
+   * @param userId 用户ID
+   * @returns 头像URL字符串，如果用户没有头像则返回null
+   */
   async getAvatarUrl(userId: number): Promise<string | null> {
     const avatar = await this.getAvatar(userId);
     return avatar ? avatar.avatarUrl : null;
