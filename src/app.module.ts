@@ -9,6 +9,7 @@ import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { EncryptionModule } from './modules/encryption/encryption.module';
 import { EmailModule } from './modules/email/email.module';
+import { TTSModule } from './modules/tts/tts.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { EmailModule } from './modules/email/email.module';
     AuthModule,
     EncryptionModule,
     EmailModule,
+    TTSModule,
   ],
   controllers: [AppController],
   providers: [AppService],
@@ -33,3 +35,5 @@ export class AppModule implements NestModule {
       .forRoutes('*');
   }
 }
+
+
