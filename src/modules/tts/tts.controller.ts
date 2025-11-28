@@ -52,43 +52,50 @@ export class TTSController {
   @ApiResponse({ status: 200, description: '成功返回音色列表' })
   getVoiceLists() {
     return {
-      voiceTypes: [
-        { id: '1001', name: '智瑜（女声，情感）', language: 'zh' },
-        { id: '1002', name: '智聆（女声，新闻）', language: 'zh' },
-        { id: '1003', name: '智美（女声，客服）', language: 'zh' },
-        { id: '1004', name: '智云（男声，情感）', language: 'zh' },
-        { id: '1005', name: '智莉（女声，客服）', language: 'zh' },
-        { id: '1006', name: '智华（女声，新闻）', language: 'zh' },
-        { id: '1007', name: '智晴（女声，童声）', language: 'zh' },
-        { id: '1008', name: '智琪（女声，童声）', language: 'zh' },
-        { id: '1009', name: '智小（女声，童声）', language: 'zh' },
-        { id: '1010', name: '智颜（女声，情感）', language: 'zh' },
-        { id: '1011', name: '智琳（女声，情感）', language: 'zh' },
-        { id: '1012', name: '智薇（女声，情感）', language: 'zh' },
-        { id: '1013', name: '智娜（女声，情感）', language: 'zh' },
-        { id: '1014', name: '智希（女声，情感）', language: 'zh' },
-        { id: '1015', name: '智美（女声，情感）', language: 'zh' },
-        { id: '1016', name: '智芸（女声，情感）', language: 'zh' },
-        { id: '1017', name: '智希（女声，情感）', language: 'zh' },
-        { id: '1018', name: '智小（女声，童声）', language: 'zh' },
-        { id: '1019', name: '智晓（女声，童声）', language: 'zh' },
-        { id: '1020', name: '智云（男声，情感）', language: 'zh' },
-        { id: '1050', name: '智伊（女声，英语）', language: 'en' },
-        { id: '1051', name: '智娜（女声，英语）', language: 'en' },
-        { id: '1052', name: '智希（女声，英语）', language: 'en' },
-        { id: '1053', name: '智琳（女声，英语）', language: 'en' },
-      ],
-    };
-  }
-
-  @Get('getVoiceModels')
-  @ApiOperation({ summary: '获取支持的模型列表' })
-  @ApiResponse({ status: 200, description: '成功返回模型列表' })
-  getVoiceModels() {
-    return {
-      models: [
-        { id: '1', name: '默认模型', description: '通用语音合成模型' },
-        { id: '2', name: '精品模型', description: '高质量语音合成模型' },
+      voices: [
+        // 大模型音色列表
+        { id: 501000, name: '智斌', description: ['阅读男声', '中性'], language: 'zh' },
+        { id: 501001, name: '智兰', description: ['资讯女声', '中性'], language: 'zh' },
+        { id: 501002, name: '智菊', description: ['阅读女声', '中性'], language: 'zh' },
+        { id: 501003, name: '智宇', description: ['阅读男声', '中性'], language: 'zh' },
+        { id: 501004, name: '月华', description: ['聊天女声', '中性'], language: 'zh' },
+        { id: 501005, name: '飞镜', description: ['聊天男声', '中性'], language: 'zh' },
+        { id: 501006, name: '千嶂', description: ['聊天男声', '中性'], language: 'zh' },
+        { id: 501007, name: '浅草', description: ['聊天男声', '中性'], language: 'zh' },
+        { id: 501008, name: 'WeJames', description: ['外语男声', '中性'], language: 'en' },
+        { id: 501009, name: 'WeWinny', description: ['外语女声', '中性'], language: 'en' },
+        { id: 601000, name: '爱小溪', description: ['聊天女声', '丰富'], language: 'zh' },
+        { id: 601001, name: '爱小洛', description: ['阅读女声', '丰富'], language: 'zh' },
+        { id: 601002, name: '爱小辰', description: ['聊天男声', '丰富'], language: 'zh' },
+        { id: 601003, name: '爱小荷', description: ['阅读女声', '丰富'], language: 'zh' },
+        { id: 601004, name: '爱小树', description: ['资讯男声', '丰富'], language: 'zh' },
+        { id: 601005, name: '爱小静', description: ['聊天女声', '丰富'], language: 'zh' },
+        { id: 601006, name: '爱小耀', description: ['阅读男声', '丰富'], language: 'zh' },
+        { id: 601007, name: '爱小叶', description: ['聊天女声', '中性'], language: 'zh' },
+        { id: 601008, name: '爱小豪', description: ['聊天男声', '中性'], language: 'zh' },
+        { id: 601009, name: '爱小芊', description: ['聊天女声', '丰富'], language: 'zh' },
+        { id: 601010, name: '爱小娇', description: ['聊天女声', '丰富'], language: 'zh' },
+        { id: 601011, name: '爱小川', description: ['聊天男声', '中性'], language: 'zh' },
+        { id: 601012, name: '爱小璟', description: ['特色女声', '中性'], language: 'zh' },
+        { id: 601013, name: '爱小伊', description: ['阅读女声', '中性'], language: 'zh' },
+        { id: 601014, name: '爱小简', description: ['聊天男声', '中性'], language: 'zh' },
+        { id: 601015, name: '爱小童', description: ['男童声', '丰富'], language: 'zh' },
+        // 精品音色列表
+        { id: 101001, name: '智瑜', description: ['情感女声', '中性'], language: 'zh' },
+        { id: 101004, name: '智云', description: ['通用男声', '中性'], language: 'zh' },
+        { id: 101011, name: '智燕', description: ['新闻女声', '中性'], language: 'zh' },
+        { id: 101013, name: '智辉', description: ['新闻男声', '中性'], language: 'zh' },
+        { id: 101015, name: '智萌', description: ['男童声', '中性'], language: 'zh' },
+        { id: 101016, name: '智甜', description: ['女童声', '中性'], language: 'zh' },
+        { id: 101019, name: '智彤', description: ['粤语女声', '中性'], language: 'zh' },
+        { id: 101021, name: '智瑞', description: ['新闻男声', '中性'], language: 'zh' },
+        { id: 101026, name: '智希', description: ['通用女声', '中性'], language: 'zh' },
+        { id: 101027, name: '智梅', description: ['通用女声', '中性'], language: 'zh' },
+        { id: 101030, name: '智柯', description: ['通用男声', '中性'], language: 'zh' },
+        { id: 101050, name: 'WeJack', description: ['英文男声', '中性'], language: 'en' },
+        { id: 101054, name: '智友', description: ['通用男声', '中性'], language: 'zh' },
+        { id: 101055, name: '智付', description: ['通用女声', '中性'], language: 'zh' },
+        { id: 301037, name: '爱小静', description: ['对话女声', '中性'], language: 'zh' },
       ],
     };
   }

@@ -10,8 +10,8 @@ export class TextToSpeechDto {
   modelType?: string = '1'; // 模型类型，默认值1
 
   @IsOptional()
-  @IsString()
-  voiceType?: string = '1001'; // 音色ID，默认值1001
+  @IsNumber()
+  voiceType?: number = 101001; // 音色ID，默认值101001
 
   @IsOptional()
   @IsNumber()

@@ -40,7 +40,7 @@ export class TTSService {
         Text: textToSpeechDto.text,
         SessionId: this.generateSessionId(),
         ModelType: parseInt(textToSpeechDto.modelType || '1', 10), // 模型类型 可选
-        VoiceType: parseInt(textToSpeechDto.voiceType || '1001', 10), // 音色 ID 可选
+        VoiceType: textToSpeechDto.voiceType || 101001, // 音色 ID 可选
         Volume: textToSpeechDto.volume || 0, // 音量大小 可选，范围[-10, 10]，默认为0
         Speed: textToSpeechDto.speed || 0, // 语速 可选，范围[-2, 6]，默认为0
         SampleRate: parseInt(textToSpeechDto.sampleRate || '16000', 10), // 采样率 可选，需要转换为数字类型
