@@ -6,7 +6,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AvatarDto } from "./avatar.dto";
 import { ImageProcessingService } from "./image-processing.service";
 import { createClient } from '@supabase/supabase-js';
-import { Multer } from 'multer';
+import { Express } from 'express';
 
 @Injectable()
 export class AvatarService {
@@ -57,7 +57,7 @@ export class AvatarService {
    * @param file 文件对象
    * @returns 上传结果
    */
-  async uploadAvatar(userId: number, file: Multer.File): Promise<{ avatarUrl: string }> {
+  async uploadAvatar(userId: number, file: Express.Multer.File): Promise<{ avatarUrl: string }> {
     if (!this.supabase) {
       throw new Error('Supabase连接失败');
     }

@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { EncryptionModule } from './modules/encryption/encryption.module';
 import { EmailModule } from './modules/email/email.module';
 import { TTSModule } from './modules/tts/tts.module';
+import { AsrModule } from './modules/asr/asr.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { TTSModule } from './modules/tts/tts.module';
     EncryptionModule,
     EmailModule,
     TTSModule,
+    AsrModule,
   ],
   controllers: [AppController],
   providers: [AppService],

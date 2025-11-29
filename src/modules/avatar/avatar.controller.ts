@@ -5,7 +5,7 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import { AvatarService } from "./avatar.service";
 import { AvatarDto } from "./avatar.dto";
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes } from '@nestjs/swagger';
-import { Multer } from 'multer';
+import { Express } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('avatar')
@@ -31,7 +31,7 @@ export class AvatarController{
   @UseInterceptors(FileInterceptor('file'))
   async uploadAvatar(
     @Request() req,
-    @UploadedFile() file: Multer.File
+    @UploadedFile() file: Express.Multer.File
   ): Promise<{ avatarUrl: string }> {
     const userId = req.user.id;
     return this.avatarService.uploadAvatar(userId, file);

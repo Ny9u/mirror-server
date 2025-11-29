@@ -42,6 +42,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "sharp": "^0.34.5",
+    "tencentcloud-sdk-nodejs-asr": "^4.1.138",
     "tencentcloud-sdk-nodejs-tts": "^4.1.117"
   },
   "devDependencies": {
@@ -56,6 +57,7 @@
     "@types/dotenv": "^8.2.3",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
+    "@types/multer": "^2.0.0",
     "@types/node": "^22.10.7",
     "@types/nodemailer": "^7.0.4",
     "@types/sharp": "^0.32.0",
