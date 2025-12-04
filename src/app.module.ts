@@ -11,6 +11,7 @@ import { EncryptionModule } from './modules/encryption/encryption.module';
 import { EmailModule } from './modules/email/email.module';
 import { TTSModule } from './modules/tts/tts.module';
 import { AsrModule } from './modules/asr/asr.module';
+import { FavoriteModule } from './modules/favorite/favorite.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AsrModule } from './modules/asr/asr.module';
     EmailModule,
     TTSModule,
     AsrModule,
+    FavoriteModule,
   ],
   controllers: [AppController],
   providers: [AppService],
