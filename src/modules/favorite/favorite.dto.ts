@@ -134,14 +134,6 @@ export class GetFavoritesDto {
 // 查询单个收藏DTO
 export class GetFavoriteDetailDto {
   @ApiProperty({
-    description: '用户ID',
-    example: 1,
-  })
-  @IsNumber()
-  @IsNotEmpty()
-  userId: number;
-
-  @ApiProperty({
     description: '收藏内容ID',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })

@@ -218,33 +218,7 @@ export class FavoriteService {
 
   // 查询单个收藏
   async getFavoriteDetail(getFavoriteDto: GetFavoriteDetailDto) {
-    const { userId, contentId } = getFavoriteDto;
-    
-    // 确保userId是整数类型
-    const userIdNumber = typeof userId === 'string' ? parseInt(userId, 10) : userId;
-
-    // 检查用户是否存在
-    const userExists = await this.prisma.user.findUnique({
-      where: { id: userIdNumber },
-    });
-    
-    if (!userExists) {
-      throw new NotFoundException(`用户ID ${userIdNumber} 不存在`);
-    }
-
-    // 检查用户是否收藏了此内容
-    const userFavorite = await this.prisma.userFavorite.findUnique({
-      where: {
-        userId_contentId: {
-          userId: userIdNumber,
-          contentId,
-        },
-      },
-    });
-
-    if (!userFavorite) {
-      throw new NotFoundException(`收藏内容 ${contentId} 不属于当前用户`);
-    }
+    const { contentId } = getFavoriteDto;
 
     // 获取收藏内容详情
     const favoriteContent = await this.prisma.favoriteContent.findUnique({

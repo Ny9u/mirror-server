@@ -56,7 +56,7 @@ export class FavoriteController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '查询单个收藏' })
   @ApiResponse({ status: 200, description: '获取收藏内容成功' })
-  @ApiResponse({ status: 404, description: '收藏内容不存在或不属于当前用户' })
+  @ApiResponse({ status: 404, description: '收藏内容不存在' })
   async getFavoriteDetail(@Body() query: GetFavoriteDetailDto) {
     return this.favoriteService.getFavoriteDetail(query);
   }
