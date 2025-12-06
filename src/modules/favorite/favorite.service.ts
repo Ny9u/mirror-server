@@ -132,8 +132,11 @@ export class FavoriteService {
   // 获取收藏列表
   async getUserFavorites(getFavoritesDto: GetFavoritesDto) {
     const { userId, page = 1, limit = 20, search, tag } = getFavoritesDto;
-    const skip = (page - 1) * limit;
-
+    
+    const pageNumber = typeof page === 'string' ? parseInt(page, 10) : page;
+    const limitNumber = typeof limit === 'string' ? parseInt(limit, 10) : limit;
+    const skip = (pageNumber - 1) * limitNumber;
+    
     // 确保userId是整数类型
     const userIdNumber = typeof userId === 'string' ? parseInt(userId, 10) : userId;
 
@@ -193,7 +196,7 @@ export class FavoriteService {
     const favoriteContents = await this.prisma.favoriteContent.findMany({
       where,
       skip,
-      take: limit,
+      take: limitNumber,
       select: {
         id: true,
         title: true,
@@ -210,9 +213,9 @@ export class FavoriteService {
       success: true,
       favorites: favoriteContents,
       total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      page: pageNumber,
+      limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
     };
   }
 
