@@ -12,6 +12,7 @@ import { EmailModule } from './modules/email/email.module';
 import { TTSModule } from './modules/tts/tts.module';
 import { AsrModule } from './modules/asr/asr.module';
 import { FavoriteModule } from './modules/favorite/favorite.module';
+import { ConversationModule } from './modules/conversation/conversation.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { FavoriteModule } from './modules/favorite/favorite.module';
     TTSModule,
     AsrModule,
     FavoriteModule,
+    ConversationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

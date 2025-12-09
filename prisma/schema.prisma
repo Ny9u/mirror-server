@@ -35,6 +35,8 @@ model UserFavorite {
 
   // 确保用户对同一内容只能收藏一次
   @@unique([userId, contentId])
+  @@index([userId])
+  @@index([contentId])
 }
 
 model FavoriteContent {
@@ -45,4 +47,26 @@ model FavoriteContent {
   conversation Json     // 存储对话数组，使用JSON类型
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model UserConversation {
+  @@map("UserConversation")
+  id        String   @id
+  userId    Int
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ConversationDetail {
+  @@map("ConversationDetail") 
+  id             Int      @id @default(autoincrement())
+  conversationId String
+  content        Json
+  createdAt      DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([conversationId])
 }
