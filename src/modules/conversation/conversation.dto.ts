@@ -28,6 +28,11 @@ export class GetConversationsDto {
   @Type(() => Number)
   @IsNumber()
   userId: number;
+
+  @ApiPropertyOptional({ description: '是否包含今日更新的对话详情', type: Boolean })
+  @IsOptional()
+  @Type(() => Boolean)
+  includeDetails?: boolean;
 }
 
 export class DeleteConversationDto {

@@ -21,7 +21,7 @@ export class ConversationController {
   @ApiOperation({ summary: '查询对话列表' })
   @ApiResponse({ status: 200, description: '查询成功' })
   async list(@Query() query: GetConversationsDto) {
-    return this.conversationService.getConversations(query.userId);
+    return this.conversationService.getConversations(query.userId, query.includeDetails);
   }
 
   @Post('delete')

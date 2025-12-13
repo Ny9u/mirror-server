@@ -79,12 +79,31 @@ export class ConversationService {
     return { success: true, conversationId: currentConversationId };
   }
 
-  async getConversations(userId: number) {
+  async getConversations(userId: number, includeDetails?: boolean) {
     const list = await this.prisma.userConversation.findMany({
       where: { userId: Number(userId) },
       orderBy: { createdAt: 'desc' },
       select: { id: true, title: true, createdAt: true, updatedAt: true },
     });
+
+    if (includeDetails) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); 
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+
+      const conversationsWithDetails = await Promise.all(
+        list.map(async (conversation) => {
+          if (conversation.updatedAt && conversation.updatedAt >= today && conversation.updatedAt < tomorrow) {
+            const details = await this.getConversationDetails(userId, conversation.id);
+            return { ...conversation, content: details.content };
+          }
+          return conversation;
+        })
+      );
+      return { success: true, conversations: conversationsWithDetails };
+    }
+
     return { success: true, conversations: list };
   }
 
