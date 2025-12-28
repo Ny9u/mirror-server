@@ -70,3 +70,16 @@ model ConversationDetail {
 
   @@index([conversationId])
 }
+
+model Knowledge {
+  @@map("Knowledge")
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  fileName  String
+  content   String   @db.Text
+  embedding Unsupported("vector(1536)")?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}

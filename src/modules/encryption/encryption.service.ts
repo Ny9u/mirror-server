@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 import { Injectable } from '@nestjs/common';
-import * as NodeRSA from 'node-rsa';
+import NodeRSA from 'node-rsa';
 
 @Injectable()
 export class EncryptionService {

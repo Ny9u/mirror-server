@@ -13,6 +13,7 @@ import { TTSModule } from './modules/tts/tts.module';
 import { AsrModule } from './modules/asr/asr.module';
 import { FavoriteModule } from './modules/favorite/favorite.module';
 import { ConversationModule } from './modules/conversation/conversation.module';
+import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { ConversationModule } from './modules/conversation/conversation.module';
     AsrModule,
     FavoriteModule,
     ConversationModule,
+    KnowledgeModule,
   ],
   controllers: [AppController],
   providers: [AppService],
