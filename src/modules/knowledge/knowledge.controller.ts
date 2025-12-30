@@ -1,8 +1,8 @@
-import { Controller, Post, Body, UploadedFile, UseInterceptors, Get, Query, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, UploadedFile, UseInterceptors, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { KnowledgeService } from './knowledge.service';
-import { UploadKnowledgeDto, SearchKnowledgeDto } from './knowledge.dto';
+import { UploadKnowledgeDto, SearchKnowledgeDto, ListKnowledgeDto, DeleteKnowledgeDto, DetailKnowledgeDto } from './knowledge.dto';
 
 @ApiTags('Knowledge')
 @Controller('knowledge')
@@ -37,14 +37,50 @@ export class KnowledgeController {
     return this.knowledgeService.uploadFile(Number(dto.userId), file);
   }
 
-  @Get('search')
+  @Post('search')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '向量检索知识库' })
   @ApiResponse({ status: 200, description: '检索成功' })
-  async search(@Query() query: SearchKnowledgeDto) {
+  async search(@Body() dto: SearchKnowledgeDto) {
     return this.knowledgeService.search(
-      Number(query.userId),
-      query.query,
-      Number(query.limit || 5),
+      Number(dto.userId),
+      dto.query,
+      Number(dto.limit || 5),
+    );
+  }
+
+  @Post('list')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '查询知识库列表' })
+  @ApiResponse({ status: 200, description: '查询成功' })
+  async list(@Body() dto: ListKnowledgeDto) {
+    return this.knowledgeService.getList(
+      Number(dto.userId),
+      Number(dto.page || 1),
+      Number(dto.pageSize || 10),
+    );
+  }
+
+  @Post('delete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '删除知识库文件' })
+  @ApiResponse({ status: 200, description: '删除成功' })
+  async delete(@Body() dto: DeleteKnowledgeDto) {
+    return this.knowledgeService.deleteFile(
+      Number(dto.userId),
+      Number(dto.id),
+      dto.fileName,
+    );
+  }
+
+  @Post('detail')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '获取文件内容详情' })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  async detail(@Body() dto: DetailKnowledgeDto) {
+    return this.knowledgeService.getDetail(
+      Number(dto.userId),
+      Number(dto.id),
     );
   }
 }

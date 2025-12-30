@@ -77,6 +77,9 @@ model Knowledge {
   userId    Int
   fileName  String
   content   String   @db.Text
+  preview   String?  @db.Text
+  size      Int?
+  type      String?
   embedding Unsupported("vector(1536)")?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
