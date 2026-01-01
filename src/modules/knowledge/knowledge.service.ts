@@ -10,6 +10,7 @@ import { Document } from '@langchain/core/documents';
 import WordExtractor from 'word-extractor';
 import pdf from 'pdf-parse';
 import * as mammoth from 'mammoth';
+import * as XLSX from 'xlsx';
 
 // Polyfill for pdf-parse in Node.js environment
 if (typeof global.DOMMatrix === 'undefined') {
@@ -21,6 +22,7 @@ if (typeof global.DOMMatrix === 'undefined') {
 @Injectable()
 export class KnowledgeService {
   private embeddings: OpenAIEmbeddings;
+  private readonly allowedExtensions = ['pdf', 'docx', 'doc', 'txt', 'md', 'xlsx', 'xls'];
 
   constructor(
     private readonly prisma: PrismaService,
@@ -43,7 +45,12 @@ export class KnowledgeService {
     }
 
     const originalname = file.originalname ? Buffer.from(file.originalname, 'latin1').toString('utf8') : '';
-    const fileExtension = originalname.split('.').pop()?.toLowerCase();
+    const fileExtension = originalname.split('.').pop()?.toLowerCase() || '';
+
+    if (!this.allowedExtensions.includes(fileExtension)) {
+      throw new BadRequestException(`不支持的文件格式 "${fileExtension}"`);
+    }
+
     const blob = new Blob([file.buffer]);
     let docs: Document[] = [];
 
@@ -73,8 +80,17 @@ export class KnowledgeService {
       } else if (fileExtension === 'txt' || fileExtension === 'md') {
         const text = await blob.text();
         docs = [new Document({ pageContent: text })];
-      } else {
-        throw new BadRequestException('不支持的文件格式，仅支持 pdf, docx, doc, txt, md');
+      } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+        const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+        let fullText = '';
+        workbook.SheetNames.forEach(sheetName => {
+          const worksheet = workbook.Sheets[sheetName];
+          const sheetText = XLSX.utils.sheet_to_csv(worksheet);
+          if (sheetText.trim()) {
+            fullText += `Sheet: ${sheetName}\n${sheetText}\n\n`;
+          }
+        });
+        docs = [new Document({ pageContent: fullText })];
       }
 
       if (!docs.length || !docs[0].pageContent.trim()) {
@@ -83,14 +99,12 @@ export class KnowledgeService {
 
       // 生成预览内容
       const fullText = docs.map(d => d.pageContent).join('\n');
-      const preview = fullText.replace(/[ \t]+/g, '').slice(0, 200);
+      const preview = fileExtension === 'md' 
+        ? fullText.slice(0, 200) 
+        : fullText.replace(/[ \t]+/g, '').slice(0, 200);
 
       // 优化显示的文件类型
-      let displayType = file.mimetype;
-      if (fileExtension === 'pdf') displayType = 'pdf';
-      else if (fileExtension === 'docx' || fileExtension === 'doc') displayType = fileExtension;
-      else if (fileExtension === 'md') displayType = 'markdown';
-      else if (fileExtension === 'txt') displayType = 'text';
+      const displayType = this.getDisplayType(fileExtension, file.mimetype);
 
       // 2. 使用 LangChain 进行文本切片
       const splitter = new RecursiveCharacterTextSplitter({
@@ -119,10 +133,20 @@ export class KnowledgeService {
         `;
       }
 
-      return { success: true, fileName: originalname, chunks: splitDocs.length };
+      return { success: true, fileName: originalname, type: displayType, chunks: splitDocs.length };
     } catch (error) {
       throw new BadRequestException(`处理文件失败: ${error.message}`);
     }
+  }
+
+  private getDisplayType(extension: string, mimetype: string): string {
+    const ext = extension.toLowerCase();
+    if (ext === 'pdf') return 'pdf';
+    if (ext === 'docx' || ext === 'doc') return ext;
+    if (ext === 'md') return 'markdown';
+    if (ext === 'txt') return 'text';
+    if (ext === 'xlsx' || ext === 'xls') return ext;
+    return mimetype;
   }
 
   async search(userId: number, query: string, limit: number = 5) {
@@ -253,6 +277,7 @@ export class KnowledgeService {
         data: {
           id: baseRecord.id,
           fileName: baseRecord.fileName,
+          type: baseRecord.type,
           content: fullContent,
         },
       };

@@ -51,7 +51,8 @@
     "sharp": "^0.34.5",
     "tencentcloud-sdk-nodejs-asr": "^4.1.138",
     "tencentcloud-sdk-nodejs-tts": "^4.1.117",
-    "word-extractor": "^1.0.4"
+    "word-extractor": "^1.0.4",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
