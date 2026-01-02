@@ -10,12 +10,26 @@ datasource db {
 
 model User {
   @@map("User")
-  id        Int      @default(autoincrement()) @id
-  username  String
-  email     String   @unique
-  password  String
+  id          Int          @default(autoincrement()) @id
+  username    String
+  email       String       @unique
+  password    String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  modelConfig ModelConfig?
+}
+
+model ModelConfig {
+  @@map("ModelConfig")
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  baseURL   String
+  apiKey    String
+  modelName String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Avatar {

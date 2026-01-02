@@ -3,7 +3,7 @@
 import { Injectable, UnauthorizedException, ConflictException, Inject, forwardRef, BadRequestException, NotFoundException } from "@nestjs/common";
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from "../prisma/prisma.service";
-import { UserDto, RegisterUserDto, LoginUserDto, AuthResponseDto, UpdateUserDto, UpdatePasswordDto, ResetPasswordDto } from "./user.dto";
+import { UserDto, RegisterUserDto, LoginUserDto, AuthResponseDto, UpdateUserDto, UpdatePasswordDto, ResetPasswordDto, ModelConfigDto } from "./user.dto";
 import * as bcrypt from 'bcrypt';
 import { AvatarService } from "../avatar/avatar.service";
 import { RefreshTokenService } from "../auth/services/refresh-token.service";
@@ -357,6 +357,41 @@ export class UserService {
         password: hashedNewPassword,
         updatedAt: new Date(),
       },
+    });
+  }
+
+  /**
+   * 更新或创建大模型配置
+   * @param userId 用户ID
+   * @param configDto 配置数据
+   * @returns 更新后的配置
+   */
+  upsertModelConfig(userId: number, configDto: ModelConfigDto) {
+    return this.prisma.modelConfig.upsert({
+      where: { userId },
+      update: {
+        baseURL: configDto.baseURL,
+        apiKey: configDto.apiKey,
+        modelName: configDto.modelName,
+        updatedAt: new Date(),
+      },
+      create: {
+        userId,
+        baseURL: configDto.baseURL,
+        apiKey: configDto.apiKey,
+        modelName: configDto.modelName,
+      },
+    });
+  }
+
+  /**
+   * 获取用户的大模型配置
+   * @param userId 用户ID
+   * @returns 大模型配置
+   */
+  async getModelConfig(userId: number) {
+    return this.prisma.modelConfig.findUnique({
+      where: { userId },
     });
   }
 }

@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { Controller, Post, Body, Get, Query, UseGuards, Request, HttpStatus, HttpCode, Req, RawBodyRequest, BadRequestException } from "@nestjs/common";
+import { Controller, Post, Body, Get, Query, UseGuards, Request, HttpStatus, HttpCode, Req, RawBodyRequest, BadRequestException, UseInterceptors } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import { Request as ExpressRequest } from 'express';
 import { UserService } from "./user.service";
-import { UserDto, AuthResponseDto, UpdateUserDto, VerificationCodeDto, VerifyCodeDto } from "./user.dto";
+import { UserDto, AuthResponseDto, UpdateUserDto, VerificationCodeDto, VerifyCodeDto, ModelConfigDto } from "./user.dto";
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from "@nestjs/passport";
 
@@ -150,5 +151,31 @@ export class UserController {
     await this.userService.resetPassword(encryptedData);
     
     return { message: '密码重置成功' };
+  }
+
+  @Post("setModelConfig")
+  @UseGuards(AuthGuard('jwt'))
+  @UseInterceptors(FileInterceptor(''))
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '配置大模型参数' })
+  @ApiResponse({ status: 200, description: '配置保存成功' })
+  @ApiResponse({ status: 401, description: '未授权' })
+  setModelConfig(
+    @Request() req,
+    @Body() configDto: ModelConfigDto,
+  ) {
+    const userId = req.user.id;
+    return this.userService.upsertModelConfig(userId, configDto);
+  }
+
+  @Post("getModelConfig")
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: '获取大模型配置' })
+  @ApiResponse({ status: 200, description: '获取配置成功' })
+  @ApiResponse({ status: 401, description: '未授权' })
+  async getModelConfig(@Request() req) {
+    const userId = req.user.id;
+    return this.userService.getModelConfig(userId);
   }
 }

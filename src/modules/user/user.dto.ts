@@ -41,6 +41,12 @@ export class VerifyCodeDto {
   code: string;
 }
 
+export class ModelConfigDto {
+  baseURL: string;
+  apiKey: string;
+  modelName?: string;
+}
+
 export class AuthResponseDto {
   user: UserDto;
   token?: string;
