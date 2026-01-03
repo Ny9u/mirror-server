@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ConfigService } from '@nestjs/config';
 import { 
   CreateFavoriteDto,
   RemoveFavoriteDto,
@@ -10,10 +12,20 @@ import {
   GetFavoriteDetailDto
 } from './favorite.dto';
 import * as crypto from 'crypto';
+import OpenAI from 'openai';
+
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: any;
+  key?: string;
+}
 
 @Injectable()
 export class FavoriteService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   // 生成基于userId和conversation内容的哈希ID
   private generateContentId(userId, conversation): string {
@@ -24,22 +36,126 @@ export class FavoriteService {
     return crypto.createHash('sha256').update(hashInput).digest('hex');
   }
 
+  /**
+   * 生成聊天标题
+   * @param apiKey API Key
+   * @param baseURL Base URL
+   * @param modelName 模型名称
+   * @param content 用户发送的第一条消息内容
+   * @returns 生成的标题
+   */
+  private async generateConversationTitle(apiKey: string, baseURL: string, modelName: string, content: string): Promise<string> {
+    try {
+      const openai = new OpenAI({ apiKey, baseURL });
+      const titlePrompt = {
+        role: "system",
+        content: "你是一个专业的标题生成助手。请根据以下对话内容生成一个简洁、准确的标题，标题不超过15个字，不要使用引号或其他标点符号。这段话的内容是：",
+      };
+
+      const userMessage = {
+        role: "user",
+        content: content.length > 200 ? content.substring(0, 200) + "..." : content
+      };
+
+      const response = await openai.chat.completions.create({
+        model: modelName,
+        messages: [titlePrompt, userMessage] as any,
+        temperature: 0.7,
+        max_tokens: 20,
+      });
+
+      let title = response.choices[0]?.message?.content?.trim() || "";
+      title = title.replace(/^["'“”]+|["'“”]+$/g, "");
+
+      return title || "新收藏";
+    } catch (error) {
+      console.error("生成标题失败: ", error);
+      return content.substring(0, 20) || "新收藏";
+    }
+  }
+
   // 用户收藏
   async addFavorite(createFavoriteDto: CreateFavoriteDto) {
-    const { userId, conversation, id, ...contentData } = createFavoriteDto;
+    const { userId, conversationId, key, id, ...contentData } = createFavoriteDto;
     
-    const contentId = this.generateContentId(userId, conversation);
-    
-    // 检查用户是否存在
+    // 1. 检查用户是否存在
     const userExists = await this.prisma.user.findUnique({
       where: { id: userId },
+      include: { modelConfig: true },
     });
     
     if (!userExists) {
       throw new NotFoundException(`用户不存在`);
     }
+
+    // 2. 获取对话详情
+    const conversationDetail = await this.prisma.conversationDetail.findFirst({
+      where: { conversationId },
+    });
+
+    if (!conversationDetail) {
+      throw new NotFoundException('对话记录不存在');
+    }
+
+    const messages = (Array.isArray(conversationDetail.content) ? conversationDetail.content : []) as unknown as ChatMessage[];
+    const index = messages.findIndex(m => m.key === key);
+
+    if (index === -1) {
+      throw new NotFoundException('该消息不存在');
+    }
+
+    const targetMsg = messages[index];
+    const pairedMessages: ChatMessage[] = [];
+
+    if (targetMsg.role === 'user') {
+      pairedMessages.push(targetMsg);
+      if (index + 1 < messages.length && messages[index + 1].role === 'assistant') {
+        pairedMessages.push(messages[index + 1]);
+      }
+    } else if (targetMsg.role === 'assistant') {
+      if (index - 1 >= 0 && messages[index - 1].role === 'user') {
+        pairedMessages.push(messages[index - 1]);
+      }
+      pairedMessages.push(targetMsg);
+    } else {
+      pairedMessages.push(targetMsg);
+    }
+
+    // 3. 确定标题 
+    let title = (createFavoriteDto as any).title;
+    if (!title) {
+      const userMsg = pairedMessages.find(m => m.role === 'user');
+      const assistantMsg = pairedMessages.find(m => m.role === 'assistant');
+      const firstMsg = userMsg || assistantMsg || pairedMessages[0];
+      
+      if (firstMsg) {
+        let contentStr = '';
+        if (typeof firstMsg.content === 'string') {
+          contentStr = firstMsg.content;
+        } else if (Array.isArray(firstMsg.content)) {
+          contentStr = firstMsg.content.map((c: any) => c.data || '').join('');
+        } else {
+          contentStr = JSON.stringify(firstMsg.content);
+        }
+
+        const apiKey = userExists.modelConfig?.apiKey || this.configService.get<string>('DEFAULT_API_KEY');
+        const baseURL = userExists.modelConfig?.baseURL || this.configService.get<string>('DEFAULT_BASE_URL');
+        const modelName = userExists.modelConfig?.modelName || 'deepseek-v3.1';
+
+        if (apiKey && baseURL) {
+          title = await this.generateConversationTitle(apiKey, baseURL, modelName, contentStr);
+        } else {
+          title = contentStr.substring(0, 20) + (contentStr.length > 20 ? '...' : '');
+        }
+      } else {
+        title = '收藏的消息';
+      }
+    }
+
+    const conversation = pairedMessages;
+    const contentId = this.generateContentId(userId, conversation);
     
-    // 检查用户是否已经收藏过此内容
+    // 4. 检查用户是否已经收藏过此内容
     const existingFavorite = await this.prisma.userFavorite.findUnique({
       where: {
         userId_contentId: {
@@ -53,14 +169,15 @@ export class FavoriteService {
       throw new BadRequestException('该内容已存在');
     }
     
-    // 使用事务确保两个操作要么都成功，要么都失败
+    // 5. 使用事务确保两个操作要么都成功，要么都失败
     return await this.prisma.$transaction(async (tx) => {
       // 创建收藏内容
       const favoriteContent = await tx.favoriteContent.create({
         data: {
           id: contentId,
-          conversation,
-          ...contentData,
+          title: title as string,
+          conversation: conversation as any,
+          description: contentData.description,
         },
       });
       

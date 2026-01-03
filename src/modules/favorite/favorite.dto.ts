@@ -22,12 +22,20 @@ export class CreateFavoriteDto {
   id?: string;
 
   @ApiProperty({
-    description: '收藏标题',
-    example: '关于人工智能的对话',
+    description: '对话ID',
+    example: 'conv_123456',
   })
   @IsString()
   @IsNotEmpty()
-  title: string;
+  conversationId: string;
+
+  @ApiProperty({
+    description: '消息Key',
+    example: 'key_123456',
+  })
+  @IsString()
+  @IsNotEmpty()
+  key: string;
 
   @ApiProperty({
     description: '收藏描述',
@@ -37,17 +45,6 @@ export class CreateFavoriteDto {
   @IsOptional()
   @IsString()
   description?: string;
-
-  @ApiProperty({
-    description: '对话内容，包含问题和回答的JSON格式数据',
-    example: JSON.stringify([
-      { role: 'user', content: '什么是人工智能？' },
-      { role: 'assistant', content: '人工智能是计算机科学的一个分支...' }
-    ]),
-    type: 'string',
-  })
-  // 期望的JSON结构: Array<{role: 'user' | 'assistant', content: string}>
-  conversation: any;
 
   @ApiProperty({
     description: '标签',

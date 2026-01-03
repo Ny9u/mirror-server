@@ -115,7 +115,17 @@ export class ConversationService {
     if (conversation.userId !== userId) {
       throw new UnauthorizedException('未授权');
     }
-    await this.prisma.userConversation.delete({ where: { id: conversationId } });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.conversationDetail.deleteMany({
+        where: { conversationId },
+      });
+
+      await tx.userConversation.delete({
+        where: { id: conversationId },
+      });
+    });
+
     return { success: true };
   }
 
