@@ -14,6 +14,7 @@ import { AsrModule } from './modules/asr/asr.module';
 import { FavoriteModule } from './modules/favorite/favorite.module';
 import { ConversationModule } from './modules/conversation/conversation.module';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { KnowledgeModule } from './modules/knowledge/knowledge.module';
     FavoriteModule,
     ConversationModule,
     KnowledgeModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
