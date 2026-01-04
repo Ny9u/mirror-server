@@ -1,11 +1,7 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable } from '@nestjs/common';
 import sharp from 'sharp';
 import { join } from 'path';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import axios from 'axios';
 
 @Injectable()
@@ -42,8 +38,7 @@ export class ImageProcessingService {
         if (!existsSync(imagePath)) {
           return imageUrl;
         }
-        const fs = require('fs');
-        imageBuffer = fs.readFileSync(imagePath);
+        imageBuffer = readFileSync(imagePath);
       } else {
         return imageUrl;
       }

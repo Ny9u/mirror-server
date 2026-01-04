@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
   Controller,
   Post,
@@ -59,10 +56,10 @@ export class AsrController {
         message: '语音识别成功',
       };
     } catch (error) {
-      this.logger.error(`语音识别失败: ${error.message}`);
+      this.logger.error(`语音识别失败: ${(error as Error).message || '未知错误'}`);
       return {
         success: false,
-        message: error.message,
+        message: (error as Error).message || '未知错误',
       };
     }
   }

@@ -1,14 +1,30 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as ASR from 'tencentcloud-sdk-nodejs-asr';
 
+// 定义腾讯云ASR SDK相关类型
+interface Credential {
+  secretId: string;
+  secretKey: string;
+}
+
+interface AsrClient {
+  CreateRecTask(params: any): Promise<any>;
+  DescribeTaskStatus(params: any): Promise<any>;
+}
+
+interface TaskStatusResult {
+  Data: {
+    Status: number; // 0:排队中 1:识别中 2:识别完成 3:识别失败
+    StatusStr: string;
+    Result: string;
+    TaskId: number;
+  };
+}
+
 @Injectable()
 export class AsrService {
-  private asrClient: any;
+  private asrClient: AsrClient;
 
   constructor(private configService: ConfigService) {
     this.initAsrClient();
@@ -63,13 +79,13 @@ export class AsrService {
       };
 
       // 创建识别任务
-      const result = await this.asrClient.CreateRecTask(params);
+      const result = await this.asrClient.CreateRecTask(params) as { Data: { TaskId: number } };
       
       // 获取任务ID
-      const taskId = result.Data.TaskId;
+      const taskId: number = result.Data.TaskId;
       
       // 轮询获取识别结果
-      let recognitionResult;
+      let recognitionResult: TaskStatusResult | undefined = undefined;
       let attempts = 0;
       const maxAttempts = 5; // 最多尝试5次
       
@@ -77,9 +93,9 @@ export class AsrService {
         // 等待一段时间再查询
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        const statusResult = await this.asrClient.DescribeTaskStatus({
+        const statusResult: TaskStatusResult = await this.asrClient.DescribeTaskStatus({
           TaskId: taskId,
-        });
+        }) as TaskStatusResult;
         
         // 检查任务状态
         if (statusResult.Data.Status === 2) { // 状态2表示识别完成
@@ -98,7 +114,8 @@ export class AsrService {
       
       return recognitionResult;
     } catch (error) {
-      throw new Error(`语音识别失败: ${error.message}`);
+      const errorMessage = (error as Error)?.message ?? '未知错误';
+      throw new Error(`语音识别失败: ${errorMessage}`);
     }
   }
 }

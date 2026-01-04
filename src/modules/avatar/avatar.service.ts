@@ -1,16 +1,35 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { AvatarDto } from "./avatar.dto";
 import { ImageProcessingService } from "./image-processing.service";
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Express } from 'express';
+
+// 定义 Supabase 数据库类型
+interface Database {
+  public: {
+    Tables: {
+      Avatar: {
+        Row: {
+          id: number;
+          avatarUrl: string;
+        };
+        Insert: {
+          id: number;
+          avatarUrl: string;
+        };
+        Update: {
+          id?: number;
+          avatarUrl?: string;
+        };
+      };
+    };
+  };
+}
 
 @Injectable()
 export class AvatarService {
-  private supabase: any;
+  private supabase: SupabaseClient<Database> | null;
   
   constructor(
     private prisma: PrismaService,
@@ -21,6 +40,9 @@ export class AvatarService {
     
     if (supabaseUrl && supabaseKey) {
       this.supabase = createClient(supabaseUrl, supabaseKey);
+    } else {
+      // 如果没有配置 Supabase，设置为 null 并在使用时检查
+      this.supabase = null;
     }
   }
 
@@ -74,7 +96,7 @@ export class AvatarService {
     
     if (error) {
       console.error('上传失败:', error);
-      throw new Error(`上传头像失败: ${error.message} (Code: ${error.statusCode || 'Unknown'})`);
+      throw new Error(`上传头像失败: ${error.message}`);
     }
     
     // 获取公共URL

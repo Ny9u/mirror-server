@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Controller, Get, Post, Query, ParseIntPipe, UseInterceptors, UploadedFile, Request, UseGuards } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { AvatarService } from "./avatar.service";
@@ -7,6 +5,13 @@ import { AvatarDto } from "./avatar.dto";
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes } from '@nestjs/swagger';
 import { Express } from 'express';
 import { AuthGuard } from '@nestjs/passport';
+import { UserDto } from '../user/user.dto';
+
+type User = UserDto;
+
+interface AuthRequest {
+  user: User;
+}
 
 @ApiTags('avatar')
 @Controller('avatar')
@@ -30,7 +35,7 @@ export class AvatarController{
   @ApiResponse({ status: 401, description: '未授权' })
   @UseInterceptors(FileInterceptor('file'))
   async uploadAvatar(
-    @Request() req,
+    @Request() req: AuthRequest,
     @UploadedFile() file: Express.Multer.File
   ): Promise<{ avatarUrl: string }> {
     const userId = req.user.id;

@@ -1,10 +1,13 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { Controller, Post, UseGuards, Request, HttpStatus, HttpCode } from "@nestjs/common";
+import { Controller, Post, UseGuards, Request, HttpStatus, HttpCode, Req } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
 import { UserDto } from "../../user/user.dto";
 import { AvatarService } from "../../avatar/avatar.service";
+
+type User = UserDto;
+
+interface AuthRequest {
+  user: User;
+}
 
 @Controller("auth")
 export class AuthController {
@@ -13,7 +16,7 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   @Post("validate")
   @HttpCode(HttpStatus.OK)
-  async validateToken(@Request() req): Promise<UserDto> {
+  async validateToken(@Req() req: AuthRequest): Promise<UserDto> {
     const user = req.user;
     const userAvatar = await this.avatarService.getAvatar(user.id);
     const avatarUrl = userAvatar ? userAvatar.avatarUrl : null;
