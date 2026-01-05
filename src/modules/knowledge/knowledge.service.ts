@@ -89,7 +89,6 @@ export class KnowledgeService {
       throw new BadRequestException(`不支持的文件格式 "${fileExtension}"`);
     }
 
-    // @ts-expect-error Buffer to Blob conversion in Node.js environment
     const blob = new Blob([file.buffer]);
     let docs: Document[] = [];
 

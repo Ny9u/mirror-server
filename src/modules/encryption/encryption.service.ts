@@ -31,14 +31,13 @@ export class EncryptionService {
    * @param encryptedData Base64编码的加密字符串
    * @returns 解密后的原始数据
    */
-  decrypt(encryptedData: string) {
+  decrypt(encryptedData: string): string {
     try {
       const buffer = Buffer.from(encryptedData, "base64");
       return this.keyPair.decrypt(buffer, "utf8");
-    } catch (error) {
-      throw new Error(
-        "解密失败: " + (error instanceof Error ? error.message : "未知错误")
-      );
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "未知错误";
+      throw new Error("解密失败: " + errorMessage);
     }
   }
 }
