@@ -1,12 +1,12 @@
-import { Injectable } from '@nestjs/common';
-import sharp from 'sharp';
-import { join } from 'path';
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
-import axios from 'axios';
+import { Injectable } from "@nestjs/common";
+import sharp from "sharp";
+import { join } from "path";
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
+import axios from "axios";
 
 @Injectable()
 export class ImageProcessingService {
-  private readonly cacheDir = './cache/thumbnails';
+  private readonly cacheDir = "./cache/thumbnails";
 
   constructor() {
     if (!existsSync(this.cacheDir)) {
@@ -23,17 +23,19 @@ export class ImageProcessingService {
     try {
       const fileName = this.generateFileName(imageUrl);
       const cacheFilePath = join(this.cacheDir, fileName);
-      
+
       // 检查缓存中是否已有处理过的图片
       if (existsSync(cacheFilePath)) {
-        return `${process.env.SERVER_BASE_URL || 'http://localhost:3000'}/cache/thumbnails/${fileName}`;
+        return `${process.env.SERVER_BASE_URL || "http://localhost:3000"}/cache/thumbnails/${fileName}`;
       }
-      
+
       let imageBuffer: Buffer;
-      if (imageUrl.startsWith('http')) {
-        const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-        imageBuffer = Buffer.from(response.data, 'binary');
-      } else if (imageUrl.startsWith('/uploads/')) {
+      if (imageUrl.startsWith("http")) {
+        const response = await axios.get(imageUrl, {
+          responseType: "arraybuffer",
+        });
+        imageBuffer = Buffer.from(response.data, "binary");
+      } else if (imageUrl.startsWith("/uploads/")) {
         const imagePath = `.${imageUrl}`;
         if (!existsSync(imagePath)) {
           return imageUrl;
@@ -42,23 +44,23 @@ export class ImageProcessingService {
       } else {
         return imageUrl;
       }
-      
+
       // 使用sharp处理图片
       const compressedImage = await sharp(imageBuffer)
-        .resize(200, 200, { 
-          fit: 'inside',
-          withoutEnlargement: true 
+        .resize(200, 200, {
+          fit: "inside",
+          withoutEnlargement: true,
         })
         .jpeg({ quality: 80 })
         .toBuffer();
-      
+
       // 保存处理后的图片到缓存目录
       writeFileSync(cacheFilePath, compressedImage);
-      
+
       // 返回缓存图片的URL
-      return `${process.env.SERVER_BASE_URL || 'http://localhost:3000'}/cache/thumbnails/${fileName}`;
+      return `${process.env.SERVER_BASE_URL || "http://localhost:3000"}/cache/thumbnails/${fileName}`;
     } catch (error) {
-      console.error('图片处理失败:', error);
+      console.error("图片处理失败:", error);
       // 出错时返回原始URL
       return imageUrl;
     }
@@ -84,7 +86,7 @@ export class ImageProcessingService {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // 转换为32位整数
     }
     return Math.abs(hash).toString();

@@ -1,16 +1,21 @@
-import { Injectable, UnauthorizedException, Inject, forwardRef } from "@nestjs/common";
-import { JwtService } from '@nestjs/jwt';
+import {
+  Injectable,
+  UnauthorizedException,
+  Inject,
+  forwardRef,
+} from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
 import { UserService } from "../../user/user.service";
 import { JwtPayload } from "../../../config/jwt.strategy";
 
 @Injectable()
 export class RefreshTokenService {
   constructor(
-    @Inject('REFRESH_JWT_SERVICE')
+    @Inject("REFRESH_JWT_SERVICE")
     private readonly refreshJwtService: JwtService,
     @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
-    private readonly jwtService: JwtService,
+    private readonly jwtService: JwtService
   ) {}
 
   /**
@@ -31,8 +36,8 @@ export class RefreshTokenService {
     try {
       const payload = this.refreshJwtService.verify<JwtPayload>(refreshToken);
       return payload;
-    } catch{
-      throw new UnauthorizedException('无效的refresh token');
+    } catch {
+      throw new UnauthorizedException("无效的refresh token");
     }
   }
 
@@ -41,35 +46,37 @@ export class RefreshTokenService {
    * @param refreshToken refresh token
    * @returns 新的访问令牌和refresh token
    */
-  async refreshAccessToken(refreshToken: string): Promise<{ token: string; newRefreshToken: string }> {
+  async refreshAccessToken(
+    refreshToken: string
+  ): Promise<{ token: string; newRefreshToken: string }> {
     try {
       // 验证refresh token
       const payload = this.validateRefreshToken(refreshToken);
-      
+
       // 检查用户是否存在
       const user = await this.userService.findById(payload.sub);
       if (!user) {
-        throw new UnauthorizedException('用户不存在');
+        throw new UnauthorizedException("用户不存在");
       }
-      
+
       // 创建一个新的载荷对象用于生成新的令牌，避免exp属性冲突
       const newPayload = {
         sub: payload.sub,
         username: payload.username,
         email: payload.email,
-        iat: Math.floor(Date.now() / 1000) // 添加签发时间
+        iat: Math.floor(Date.now() / 1000), // 添加签发时间
       };
-      
+
       // 生成新的访问令牌和refresh token
       const newAccessToken = this.generateAccessToken(newPayload);
       const newRefreshToken = this.generateRefreshToken(newPayload);
-      
+
       return {
         token: newAccessToken,
         newRefreshToken: newRefreshToken,
       };
     } catch (error) {
-      console.error('刷新访问令牌时发生错误:', error);
+      console.error("刷新访问令牌时发生错误:", error);
       throw error;
     }
   }
@@ -81,7 +88,9 @@ export class RefreshTokenService {
    */
   private generateAccessToken(payload: JwtPayload): string {
     // 创建一个新的载荷对象，排除exp属性以避免与expiresIn选项冲突
-    const payloadWithoutExp: Partial<JwtPayload> & { [key: string]: any } = { ...payload };
+    const payloadWithoutExp: Partial<JwtPayload> & { [key: string]: any } = {
+      ...payload,
+    };
     delete payloadWithoutExp.exp;
     // 使用主jwtService生成访问令牌
     return this.jwtService.sign(payloadWithoutExp);

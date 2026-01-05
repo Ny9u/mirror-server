@@ -1,8 +1,8 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { MulterModule } from '@nestjs/platform-express';
-import { AsrController } from './asr.controller';
-import { AsrService } from './asr.service';
+import { Module } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import { MulterModule } from "@nestjs/platform-express";
+import { AsrController } from "./asr.controller";
+import { AsrService } from "./asr.service";
 
 @Module({
   imports: [

@@ -1,20 +1,32 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { Injectable, NotFoundException, UnauthorizedException  } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { SaveConversationDto } from './conversation.dto';
-import * as crypto from 'crypto';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { SaveConversationDto } from "./conversation.dto";
+import * as crypto from "crypto";
+
+// 对话内容项接口
+interface ConversationContentItem {
+  conversationId?: string;
+}
 
 @Injectable()
 export class ConversationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private generateConversationId(userId: number, title?: string, content?: any): string {
-    const userIdStr = typeof userId === 'number' ? userId.toString() : userId;
-    const titleStr = typeof title === 'string' ? title : '';
-    const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
+  private generateConversationId(
+    userId: number,
+    title?: string,
+    content?: string | object
+  ): string {
+    const userIdStr = typeof userId === "number" ? userId.toString() : userId;
+    const titleStr = typeof title === "string" ? title : "";
+    const contentStr =
+      typeof content === "string" ? content : JSON.stringify(content);
     const hashInput = `${userIdStr}:${titleStr}:${contentStr}`;
-    return crypto.createHash('sha256').update(hashInput).digest('hex');
+    return crypto.createHash("sha256").update(hashInput).digest("hex");
   }
 
   async saveConversation(dto: SaveConversationDto) {
@@ -23,12 +35,16 @@ export class ConversationService {
     if (dto.conversationId) {
       currentConversationId = dto.conversationId;
 
-      const existingConversation = await this.prisma.userConversation.findUnique({
-        where: { id: currentConversationId },
-      });
+      const existingConversation =
+        await this.prisma.userConversation.findUnique({
+          where: { id: currentConversationId },
+        });
 
-      if (!existingConversation || existingConversation.userId !== Number(dto.userId)) {
-        throw new UnauthorizedException('对话不存在');
+      if (
+        !existingConversation ||
+        existingConversation.userId !== Number(dto.userId)
+      ) {
+        throw new UnauthorizedException("对话不存在");
       }
 
       await this.prisma.$transaction(async (tx) => {
@@ -36,27 +52,36 @@ export class ConversationService {
           where: { id: currentConversationId },
           data: {
             ...(dto.title && { title: dto.title }),
-            updatedAt: new Date(), 
+            updatedAt: new Date(),
           },
         });
 
         if (dto.content) {
+          const contentValue = dto.content as string | object;
           await tx.conversationDetail.updateMany({
-              where: { conversationId: currentConversationId },
-              data: {
-                content: dto.content,
-                updatedAt: new Date(), 
-              },
-            });
+            where: { conversationId: currentConversationId },
+            data: {
+              content: contentValue,
+              updatedAt: new Date(),
+            },
+          });
         }
       });
     } else {
-      currentConversationId = this.generateConversationId(Number(dto.userId), dto.title, dto.content);
+      const dtoContent = dto.content as string | object;
+      currentConversationId = this.generateConversationId(
+        Number(dto.userId),
+        dto.title,
+        dtoContent
+      );
 
-      const parsedContent = JSON.parse(dto.content as string);
+      const parsedContent = JSON.parse(
+        dtoContent as string
+      ) as ConversationContentItem[];
+      let finalContent: string | object = dtoContent;
       if (Array.isArray(parsedContent) && parsedContent.length > 0) {
         parsedContent[0].conversationId = currentConversationId;
-        dto.content = JSON.stringify(parsedContent);
+        finalContent = JSON.stringify(parsedContent);
       }
 
       await this.prisma.$transaction(async (tx) => {
@@ -70,7 +95,7 @@ export class ConversationService {
         await tx.conversationDetail.create({
           data: {
             conversationId: conv.id,
-            content: dto.content,
+            content: finalContent,
           },
         });
       });
@@ -82,20 +107,27 @@ export class ConversationService {
   async getConversations(userId: number, includeDetails?: boolean) {
     const list = await this.prisma.userConversation.findMany({
       where: { userId: Number(userId) },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       select: { id: true, title: true, createdAt: true, updatedAt: true },
     });
 
     if (includeDetails) {
       const today = new Date();
-      today.setHours(0, 0, 0, 0); 
+      today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(today.getDate() + 1);
 
       const conversationsWithDetails = await Promise.all(
         list.map(async (conversation) => {
-          if (conversation.updatedAt && conversation.updatedAt >= today && conversation.updatedAt < tomorrow) {
-            const details = await this.getConversationDetails(userId, conversation.id);
+          if (
+            conversation.updatedAt &&
+            conversation.updatedAt >= today &&
+            conversation.updatedAt < tomorrow
+          ) {
+            const details = await this.getConversationDetails(
+              userId,
+              conversation.id
+            );
             return { ...conversation, content: details.content };
           }
           return conversation;
@@ -108,12 +140,14 @@ export class ConversationService {
   }
 
   async deleteConversation(userId: number, conversationId: string) {
-    const conversation = await this.prisma.userConversation.findUnique({ where: { id: conversationId } });
+    const conversation = await this.prisma.userConversation.findUnique({
+      where: { id: conversationId },
+    });
     if (!conversation) {
-      throw new NotFoundException('对话不存在');
+      throw new NotFoundException("对话不存在");
     }
     if (conversation.userId !== userId) {
-      throw new UnauthorizedException('未授权');
+      throw new UnauthorizedException("未授权");
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -130,19 +164,21 @@ export class ConversationService {
   }
 
   async getConversationDetails(userId: number, conversationId: string) {
-    const conversation = await this.prisma.userConversation.findUnique({ where: { id: conversationId } });
+    const conversation = await this.prisma.userConversation.findUnique({
+      where: { id: conversationId },
+    });
     if (!conversation) {
-      throw new NotFoundException('对话不存在');
+      throw new NotFoundException("对话不存在");
     }
     if (conversation.userId !== Number(userId)) {
-      throw new UnauthorizedException('未授权');
+      throw new UnauthorizedException("未授权");
     }
     const detail = await this.prisma.conversationDetail.findMany({
       where: { conversationId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: "asc" },
       select: { content: true },
     });
 
-    return { success: true, content: detail.map(d => d.content) };
+    return { success: true, content: detail.map((d) => d.content) };
   }
 }

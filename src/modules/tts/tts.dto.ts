@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsNumber,
+  Min,
+  Max,
+} from "class-validator";
 
 export class TextToSpeechDto {
   @IsString()
@@ -7,7 +14,7 @@ export class TextToSpeechDto {
 
   @IsOptional()
   @IsString()
-  modelType?: string = '1'; // 模型类型，默认值1
+  modelType?: string = "1"; // 模型类型，默认值1
 
   @IsOptional()
   @IsNumber()
@@ -27,11 +34,11 @@ export class TextToSpeechDto {
 
   @IsOptional()
   @IsString()
-  sampleRate?: string = '16000'; // 采样率，默认值16000
+  sampleRate?: string = "16000"; // 采样率，默认值16000
 
   @IsOptional()
   @IsString()
-  audioType?: string = 'mp3'; // 音频格式，默认值mp3
+  audioType?: string = "mp3"; // 音频格式，默认值mp3
 }
 
 export class TTSResponseDto {
@@ -43,6 +50,6 @@ export class TTSResponseDto {
 export class TTSOriginalResponseDto {
   Audio: string;
   SessionId: string;
-  Subtitles: Array<{ Text: string; StartTime: number; EndTime: number; }>;
+  Subtitles: Array<{ Text: string; StartTime: number; EndTime: number }>;
   RequestId: string;
 }

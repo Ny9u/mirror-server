@@ -1,7 +1,7 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { TTSController } from './tts.controller';
-import { TTSService } from './tts.service';
+import { Module } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import { TTSController } from "./tts.controller";
+import { TTSService } from "./tts.service";
 
 @Module({
   imports: [ConfigModule],

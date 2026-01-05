@@ -1,9 +1,12 @@
-import { Injectable } from '@nestjs/common';
-import { EmailService } from './email.service';
+import { Injectable } from "@nestjs/common";
+import { EmailService } from "./email.service";
 
 @Injectable()
 export class VerificationService {
-  private verificationCodes = new Map<string, { code: string; expiresAt: Date }>();
+  private verificationCodes = new Map<
+    string,
+    { code: string; expiresAt: Date }
+  >();
 
   constructor(private emailService: EmailService) {}
 
@@ -28,16 +31,16 @@ export class VerificationService {
    */
   verifyCode(email: string, code: string): boolean {
     const stored = this.verificationCodes.get(email);
-    
+
     if (!stored || stored.code !== code) {
       return false;
     }
-    
+
     if (new Date() > stored.expiresAt) {
       this.verificationCodes.delete(email);
       return false;
     }
-    
+
     this.verificationCodes.delete(email);
     return true;
   }
@@ -47,7 +50,10 @@ export class VerificationService {
    * @param email 邮箱地址
    * @param type 验证码类型，用于区分不同场景（register: 注册, reset: 重置密码）
    */
-  async sendVerificationCode(email: string, type: 'register' | 'reset' = 'register'): Promise<void> {
+  async sendVerificationCode(
+    email: string,
+    type: "register" | "reset" = "register"
+  ): Promise<void> {
     const code = this.generateVerificationCode(email);
     await this.emailService.sendVerificationCode(email, code, type);
   }

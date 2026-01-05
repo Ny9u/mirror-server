@@ -33,7 +33,7 @@ export class ResetPasswordDto {
 
 export class VerificationCodeDto {
   email: string;
-  type?: 'register' | 'reset'; // 验证码类型，用于区分不同场景
+  type?: "register" | "reset"; // 验证码类型，用于区分不同场景
 }
 
 export class VerifyCodeDto {

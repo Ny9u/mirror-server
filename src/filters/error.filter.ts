@@ -1,5 +1,12 @@
-import { Request, Response } from 'express';
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { Request, Response } from "express";
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from "@nestjs/common";
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -10,25 +17,33 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
 
     // 优先从请求对象中获取请求ID，其次从请求头中获取
-    const requestId = (request as Request & { requestId: string }).requestId || request.headers['x-request-id'] as string || '';
-    const status = exception instanceof HttpException
-      ? exception.getStatus()
-      : HttpStatus.INTERNAL_SERVER_ERROR;
+    const requestId =
+      (request as Request & { requestId: string }).requestId ||
+      (request.headers["x-request-id"] as string) ||
+      "";
+    const status =
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const errorMessage = exception instanceof HttpException
-      ? exception.getResponse()
-      : 'Internal server error';
+    const errorMessage =
+      exception instanceof HttpException
+        ? exception.getResponse()
+        : "Internal server error";
 
-    const errorDetails = typeof errorMessage === 'object' && errorMessage !== null
-      ? { ...errorMessage }
-      : { message: errorMessage };
+    const errorDetails =
+      typeof errorMessage === "object" && errorMessage !== null
+        ? { ...errorMessage }
+        : { message: errorMessage };
 
     const errorResponse = {
-      timestamp: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
+      timestamp: new Date().toLocaleString("zh-CN", {
+        timeZone: "Asia/Shanghai",
+      }),
       code: status,
       path: request.url,
       method: request.method,
-      message: errorDetails.message || 'Unknown error',
+      message: errorDetails.message || "Unknown error",
     };
 
     // 根据错误级别记录日志
@@ -48,7 +63,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         `${requestId} - ${request.url} - ${JSON.stringify(errorDetails, null, 2)}`
       );
     }
-    
+
     response.status(status).json(errorResponse);
   }
 }

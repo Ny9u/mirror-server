@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as ASR from 'tencentcloud-sdk-nodejs-asr';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import * as ASR from "tencentcloud-sdk-nodejs-asr";
 
 // 定义腾讯云ASR SDK相关类型
 interface Credential {
@@ -31,12 +31,15 @@ export class AsrService {
   }
 
   private initAsrClient() {
-    const secretId = this.configService.get<string>('TENCENT_SECRET_ID');
-    const secretKey = this.configService.get<string>('TENCENT_SECRET_KEY');
-    const region = this.configService.get<string>('TENCENT_REGION', 'ap-beijing');
+    const secretId = this.configService.get<string>("TENCENT_SECRET_ID");
+    const secretKey = this.configService.get<string>("TENCENT_SECRET_KEY");
+    const region = this.configService.get<string>(
+      "TENCENT_REGION",
+      "ap-beijing"
+    );
 
     if (!secretId || !secretKey) {
-      throw new Error('腾讯云密钥信息未配置');
+      throw new Error("腾讯云密钥信息未配置");
     }
 
     const clientConfig = {
@@ -47,7 +50,7 @@ export class AsrService {
       region,
       profile: {
         httpProfile: {
-          endpoint: 'asr.tencentcloudapi.com',
+          endpoint: "asr.tencentcloudapi.com",
         },
       },
     };
@@ -63,11 +66,11 @@ export class AsrService {
    */
   async recognizeAudioFile(
     fileBuffer: Buffer,
-    engineModelType: string = '16k_zh',
+    engineModelType: string = "16k_zh"
   ) {
     try {
       // 将文件缓冲区转换为Base64
-      const audioData = fileBuffer.toString('base64');
+      const audioData = fileBuffer.toString("base64");
 
       const params = {
         EngineModelType: engineModelType,
@@ -79,42 +82,49 @@ export class AsrService {
       };
 
       // 创建识别任务
-      const result = await this.asrClient.CreateRecTask(params) as { Data: { TaskId: number } };
-      
+      const result = (await this.asrClient.CreateRecTask(params)) as {
+        Data: { TaskId: number };
+      };
+
       // 获取任务ID
       const taskId: number = result.Data.TaskId;
-      
+
       // 轮询获取识别结果
       let recognitionResult: TaskStatusResult | undefined = undefined;
       let attempts = 0;
       const maxAttempts = 5; // 最多尝试5次
-      
+
       while (attempts < maxAttempts) {
         // 等待一段时间再查询
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        const statusResult: TaskStatusResult = await this.asrClient.DescribeTaskStatus({
-          TaskId: taskId,
-        }) as TaskStatusResult;
-        
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        const statusResult: TaskStatusResult =
+          (await this.asrClient.DescribeTaskStatus({
+            TaskId: taskId,
+          })) as TaskStatusResult;
+
         // 检查任务状态
-        if (statusResult.Data.Status === 2) { // 状态2表示识别完成
+        if (statusResult.Data.Status === 2) {
+          // 状态2表示识别完成
           recognitionResult = statusResult;
           break;
-        } else if (statusResult.Data.Status === 3) { // 状态3表示识别失败
-          throw new Error(`语音识别失败: ${statusResult.Data.StatusStr || '未知错误'}`);
+        } else if (statusResult.Data.Status === 3) {
+          // 状态3表示识别失败
+          throw new Error(
+            `语音识别失败: ${statusResult.Data.StatusStr || "未知错误"}`
+          );
         }
-        
+
         attempts++;
       }
-      
+
       if (!recognitionResult) {
-        throw new Error('语音识别超时，请稍后重试');
+        throw new Error("语音识别超时，请稍后重试");
       }
-      
+
       return recognitionResult;
     } catch (error) {
-      const errorMessage = (error as Error)?.message ?? '未知错误';
+      const errorMessage = (error as Error)?.message ?? "未知错误";
       throw new Error(`语音识别失败: ${errorMessage}`);
     }
   }

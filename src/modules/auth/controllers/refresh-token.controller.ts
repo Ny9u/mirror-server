@@ -1,25 +1,37 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
-import { RefreshTokenService } from '../services/refresh-token.service';
-import { UserService } from '../../user/user.service';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { RefreshTokenDto, TokenResponseDto } from '../dtos/refresh-token.dto';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  UnauthorizedException,
+} from "@nestjs/common";
+import { RefreshTokenService } from "../services/refresh-token.service";
+import { UserService } from "../../user/user.service";
+import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
+import { RefreshTokenDto, TokenResponseDto } from "../dtos/refresh-token.dto";
 
-@ApiTags('auth')
-@Controller('auth')
+@ApiTags("auth")
+@Controller("auth")
 export class RefreshTokenController {
   constructor(
     private readonly refreshTokenService: RefreshTokenService,
-    private readonly userService: UserService,
+    private readonly userService: UserService
   ) {}
 
   @HttpCode(HttpStatus.OK)
-  @Post('refresh')
-  @ApiOperation({ summary: '刷新访问令牌' })
-  @ApiResponse({ status: 200, description: '成功刷新访问令牌' })
-  @ApiResponse({ status: 401, description: '无效的refresh token' })
-  async refresh(@Body() refreshTokenDto: RefreshTokenDto): Promise<TokenResponseDto> {
+  @Post("refresh")
+  @ApiOperation({ summary: "刷新访问令牌" })
+  @ApiResponse({ status: 200, description: "成功刷新访问令牌" })
+  @ApiResponse({ status: 401, description: "无效的refresh token" })
+  async refresh(
+    @Body() refreshTokenDto: RefreshTokenDto
+  ): Promise<TokenResponseDto> {
     try {
-      const { token, newRefreshToken } = await this.refreshTokenService.refreshAccessToken(refreshTokenDto.refreshToken);
+      const { token, newRefreshToken } =
+        await this.refreshTokenService.refreshAccessToken(
+          refreshTokenDto.refreshToken
+        );
       return {
         token,
         refreshToken: newRefreshToken,
@@ -29,7 +41,7 @@ export class RefreshTokenController {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      throw new UnauthorizedException('无效的refresh token');
+      throw new UnauthorizedException("无效的refresh token");
     }
   }
 }
