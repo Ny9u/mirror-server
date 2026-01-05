@@ -24,6 +24,10 @@ export class SearchKnowledgeDto {
   @IsNumber()
   @IsNotEmpty()
   limit: number;
+
+  @ApiProperty({ description: "最小相似度阈值", default: 0.6, required: false })
+  @IsNumber()
+  minSimilarity?: number = 0.6;
 }
 
 export class ListKnowledgeDto {

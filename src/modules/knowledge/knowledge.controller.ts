@@ -63,7 +63,8 @@ export class KnowledgeController {
     return this.knowledgeService.search(
       Number(dto.userId),
       dto.query,
-      Number(dto.limit || 5)
+      Number(dto.limit || 5),
+      Number(dto.minSimilarity || 0.6)
     );
   }
 

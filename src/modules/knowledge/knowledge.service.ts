@@ -47,6 +47,11 @@ function getErrorMessage(error: Error | string): string {
   return String(error);
 }
 
+// 清理字符串中的 null 字节，防止 PostgreSQL 报错
+function sanitizeString(str: string): string {
+  return str.replace(/\0/g, "");
+}
+
 @Injectable()
 export class KnowledgeService {
   private embeddings: OpenAIEmbeddings;
@@ -80,9 +85,11 @@ export class KnowledgeService {
       throw new BadRequestException("未上传文件");
     }
 
-    const originalname = file.originalname
-      ? Buffer.from(file.originalname, "latin1").toString("utf8")
-      : "";
+    const originalname = sanitizeString(
+      file.originalname
+        ? Buffer.from(file.originalname, "latin1").toString("utf8")
+        : ""
+    );
     const fileExtension = originalname.split(".").pop()?.toLowerCase() || "";
 
     if (!this.allowedExtensions.includes(fileExtension)) {
@@ -139,10 +146,11 @@ export class KnowledgeService {
 
       // 生成预览内容
       const fullText = docs.map((d) => d.pageContent).join("\n");
-      const preview =
+      const preview = sanitizeString(
         fileExtension === "md"
           ? fullText.slice(0, 200)
-          : fullText.replace(/[ \t]+/g, "").slice(0, 200);
+          : fullText.replace(/[ \t]+/g, "").slice(0, 200)
+      );
 
       // 优化显示的文件类型
       const displayType = this.getDisplayType(fileExtension, file.mimetype);
@@ -167,10 +175,11 @@ export class KnowledgeService {
       for (const doc of splitDocs) {
         const embedding = await this.embeddings.embedQuery(doc.pageContent);
         const embeddingString = `[${embedding.join(",")}]`;
+        const sanitizedContent = sanitizeString(doc.pageContent);
 
         await this.prisma.$executeRaw`
           INSERT INTO "Knowledge" ("userId", "fileName", "content", "preview", "size", "type", "embedding", "updatedAt")
-          VALUES (${userId}, ${originalname}, ${doc.pageContent}, ${preview}, ${file.size}, ${displayType}, ${embeddingString}::vector, NOW())
+          VALUES (${userId}, ${originalname}, ${sanitizedContent}, ${preview}, ${file.size}, ${displayType}, ${embeddingString}::vector, NOW())
         `;
       }
 
@@ -197,20 +206,33 @@ export class KnowledgeService {
     return mimetype;
   }
 
-  async search(userId: number, query: string, limit: number = 5) {
+  async search(
+    userId: number,
+    query: string,
+    limit: number = 5,
+    minSimilarity: number = 0.6
+  ) {
     try {
       // 1. 使用 LangChain 生成查询向量
       const queryEmbedding = await this.embeddings.embedQuery(query);
       const queryEmbeddingString = `[${queryEmbedding.join(",")}]`;
 
-      // 2. 向量搜索
+      // 2. 向量搜索 (使用余弦相似度进行过滤和排序)
+      // embedding <=> vector 是余弦距离，1 - 余弦距离 = 余弦相似度
       const results: KnowledgeSearchResult[] = await this.prisma.$queryRaw`
         SELECT id, "fileName", content, preview, size, type, 1 - (embedding <=> ${queryEmbeddingString}::vector) as similarity
         FROM "Knowledge"
-        WHERE "userId" = ${userId}
+        WHERE "userId" = ${userId} 
+        AND 1 - (embedding <=> ${queryEmbeddingString}::vector) >= ${minSimilarity}
         ORDER BY embedding <=> ${queryEmbeddingString}::vector
         LIMIT ${limit}
       `;
+
+      results.forEach((res, index) => {
+        console.log(
+          `[KnowledgeSearch] Search Result ${index + 1}: ${res.fileName}, Similarity: ${res.similarity}`
+        );
+      });
 
       return { success: true, results };
     } catch (error) {

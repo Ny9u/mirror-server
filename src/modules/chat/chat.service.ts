@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
+import { KnowledgeService } from "../knowledge/knowledge.service";
 import { ChatDto } from "./chat.dto";
 import OpenAI from "openai";
 import * as crypto from "crypto";
@@ -66,7 +67,8 @@ interface ChatMessage {
 export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly knowledgeService: KnowledgeService
   ) {}
 
   async chatStream(
@@ -94,10 +96,28 @@ export class ChatService {
     // 2. 确定 chatId 和获取上下文
     let chatId = dto.chatId;
     let isNewConversation = false;
+    let systemContent = "你是一个专业、精准、高效的智能问答助手,名字叫Mirror。";
+
+    // 3. 知识库检索
+    if (dto.enableKnowledge && userId) {
+      const searchResult = await this.knowledgeService.search(
+        userId,
+        dto.content,
+        dto.topK ?? 5,
+        dto.minSimilarity ?? 0.2
+      );
+      if (searchResult.success && searchResult.results.length > 0) {
+        const knowledgeContext = searchResult.results
+          .map((res) => `[来自文件: ${res.fileName}]\n${res.content}`)
+          .join("\n\n");
+        systemContent += `\n\n以下是与用户问题相关的参考资料，请优先根据这些内容进行回答，若资料不足以回答问题，请根据自己的知识进行回答：\n\n${knowledgeContext}`;
+      }
+    }
+
     const messages: ChatMessage[] = [
       {
         role: "system",
-        content: "你是一个专业、精准、高效的智能问答助手,名字叫Mirror。",
+        content: systemContent,
       },
     ];
 

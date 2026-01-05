@@ -8,5 +8,6 @@ import { ConfigModule } from "@nestjs/config";
   imports: [PrismaModule, ConfigModule],
   controllers: [KnowledgeController],
   providers: [KnowledgeService],
+  exports: [KnowledgeService],
 })
 export class KnowledgeModule {}

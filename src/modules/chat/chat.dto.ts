@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsNotEmpty } from "class-validator";
+import {
+  IsString,
+  IsOptional,
+  IsNotEmpty,
+  IsBoolean,
+  IsNumber,
+} from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
 
 export class ChatDto {
@@ -41,6 +47,33 @@ export class ChatDto {
   })
   @IsOptional()
   enableSearch?: boolean;
+
+  @ApiProperty({
+    description: "是否启用知识库",
+    example: false,
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  enableKnowledge?: boolean;
+
+  @ApiProperty({
+    description: "知识库检索TopK",
+    example: 5,
+    required: false,
+  })
+  @IsNumber()
+  @IsOptional()
+  topK?: number;
+
+  @ApiProperty({
+    description: "知识库检索相似度阈值",
+    example: 0.5,
+    required: false,
+  })
+  @IsNumber()
+  @IsOptional()
+  minSimilarity?: number;
 }
 
 export class ChatResponseDto {
