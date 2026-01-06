@@ -51,6 +51,7 @@ export interface KnowledgeListItem {
   preview: string;
   size: number;
   type: string;
+  fileData?: Buffer;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -120,7 +121,7 @@ export class KnowledgeService {
       throw new BadRequestException(`不支持的文件格式 "${fileExtension}"`);
     }
 
-    const blob = new Blob([file.buffer]);
+    const blob = new Blob([new Uint8Array(file.buffer)]);
     let docs: Document[] = [];
 
     // 1. 解析文件
@@ -181,8 +182,8 @@ export class KnowledgeService {
 
       // 2. 使用 LangChain 进行文本切片
       const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 500, // 减小块大小，提高精准度
-        chunkOverlap: 100, // 适当重叠
+        chunkSize: 1000,
+        chunkOverlap: 150,
         separators: ["\n\n", "\n", "。", "！", "？", ".", "!", "?", " "],
       });
 
@@ -196,17 +197,65 @@ export class KnowledgeService {
         },
       });
 
-      // 4. 生成向量并保存到数据库
-      for (const doc of splitDocs) {
-        const embedding = await this.embeddings.embedQuery(doc.pageContent);
-        const embeddingString = `[${embedding.join(",")}]`;
-        const sanitizedContent = sanitizeString(doc.pageContent);
+      // 4. 并行生成所有 chunk 的向量
+      const BATCH_SIZE = 10; // 每批并行处理的数量，避免 API 限流
+      const allEmbeddings: number[][] = [];
 
-        await this.prisma.$executeRaw`
-          INSERT INTO "Knowledge" ("userId", "fileName", "content", "preview", "size", "type", "embedding", "updatedAt")
-          VALUES (${userId}, ${originalname}, ${sanitizedContent}, ${preview}, ${file.size}, ${displayType}, ${embeddingString}::vector, NOW())
-        `;
+      for (let i = 0; i < splitDocs.length; i += BATCH_SIZE) {
+        const batch = splitDocs.slice(i, i + BATCH_SIZE);
+        const batchEmbeddings = await Promise.all(
+          batch.map((doc) => this.embeddings.embedQuery(doc.pageContent))
+        );
+        allEmbeddings.push(...batchEmbeddings);
       }
+
+      // 5. 使用事务批量插入数据库
+      // 设置较长的超时时间（根据 chunks 数量动态调整）
+      const timeoutMs = Math.max(30000, splitDocs.length * 500); // 每个 chunk 至少 500ms，最少 30 秒
+
+      // 确保 file.buffer 是 Buffer 类型
+      const fileBuffer = Buffer.isBuffer(file.buffer)
+        ? file.buffer
+        : Buffer.from(file.buffer);
+
+      await this.prisma.$transaction(
+        async (tx) => {
+          // 首先插入第一个 chunk（包含源文件数据）
+          const firstEmbeddingString = `[${allEmbeddings[0].join(",")}]`;
+          const firstSanitizedContent = sanitizeString(
+            splitDocs[0].pageContent
+          );
+
+          // 使用 $queryRawUnsafe 并用 $1, $2 等占位符，确保 bytea 正确传递
+          await tx.$executeRawUnsafe(
+            `INSERT INTO "Knowledge" ("userId", "fileName", "content", "preview", "size", "type", "fileData", "embedding", "updatedAt")
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector, NOW())`,
+            userId,
+            originalname,
+            firstSanitizedContent,
+            preview,
+            file.size,
+            displayType,
+            fileBuffer,
+            firstEmbeddingString
+          );
+
+          // 其余 chunks 逐个插入（不包含源文件数据）
+          for (let i = 1; i < splitDocs.length; i++) {
+            const embeddingString = `[${allEmbeddings[i].join(",")}]`;
+            const sanitizedContent = sanitizeString(splitDocs[i].pageContent);
+
+            await tx.$executeRaw`
+              INSERT INTO "Knowledge" ("userId", "fileName", "content", "preview", "size", "type", "embedding", "updatedAt")
+              VALUES (${userId}, ${originalname}, ${sanitizedContent}, ${preview}, ${file.size}, ${displayType}, ${embeddingString}::vector, NOW())
+            `;
+          }
+        },
+        {
+          maxWait: 60000, // 最大等待获取连接时间 60 秒
+          timeout: timeoutMs, // 事务超时时间根据 chunks 数量动态调整
+        }
+      );
 
       return {
         success: true,
@@ -756,5 +805,103 @@ export class KnowledgeService {
         `获取文件详情失败: ${getErrorMessage(error as Error | string)}`
       );
     }
+  }
+
+  async downloadFile(userId: number, id: number) {
+    try {
+      const baseRecord = await this.prisma.knowledge.findFirst({
+        where: {
+          id,
+          userId,
+        },
+        select: {
+          fileName: true,
+          type: true,
+          size: true,
+        },
+      });
+
+      if (!baseRecord) {
+        throw new BadRequestException("文件不存在或无权访问");
+      }
+
+      // 查找包含源文件数据的记录（第一个 chunk）
+      // 使用原始 SQL 查询来处理 Bytes 类型字段
+      const records = await this.prisma.$queryRaw<
+        Array<{
+          id: number;
+          fileName: string;
+          type: string | null;
+          size: number | null;
+          fileData: Buffer | null;
+        }>
+      >`
+        SELECT id, "fileName", type, size, "fileData"
+        FROM "Knowledge"
+        WHERE "userId" = ${userId}
+        AND "fileName" = ${baseRecord.fileName}
+        AND "fileData" IS NOT NULL
+        LIMIT 1
+      `;
+
+      const record = records[0];
+
+      // 如果有源文件数据，直接返回
+      if (record && record.fileData) {
+        const mimeType = this.getMimeType(record.type || "", record.fileName);
+
+        // 确保 fileData 是 Buffer 类型
+        // PostgreSQL 的 bytea 可能返回 Buffer 或其他格式
+        let fileBuffer: Buffer;
+        if (Buffer.isBuffer(record.fileData)) {
+          fileBuffer = record.fileData;
+        } else if (
+          typeof record.fileData === "object" &&
+          record.fileData !== null
+        ) {
+          // 可能是 Uint8Array 或类似对象
+          fileBuffer = Buffer.from(record.fileData as unknown as ArrayBuffer);
+        } else {
+          throw new BadRequestException("文件数据格式异常");
+        }
+
+        return {
+          success: true,
+          data: {
+            fileName: record.fileName,
+            mimeType,
+            size: record.size,
+            fileData: fileBuffer,
+          },
+        };
+      } else {
+        throw new BadRequestException("文件内容不存在");
+      }
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException(
+        `下载文件失败: ${getErrorMessage(error as Error | string)}`
+      );
+    }
+  }
+
+  private getMimeType(type: string, fileName: string): string {
+    const extension = fileName.split(".").pop()?.toLowerCase() || "";
+    const mimeTypes: Record<string, string> = {
+      pdf: "application/pdf",
+      doc: "application/msword",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      xls: "application/vnd.ms-excel",
+      xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      txt: "text/plain",
+      md: "text/markdown",
+      markdown: "text/markdown",
+      text: "text/plain",
+    };
+    return (
+      mimeTypes[extension] || mimeTypes[type] || "application/octet-stream"
+    );
   }
 }

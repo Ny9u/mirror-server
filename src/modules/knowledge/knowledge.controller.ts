@@ -7,7 +7,9 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  Res,
 } from "@nestjs/common";
+import { Response } from "express";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
   ApiTags,
@@ -23,7 +25,11 @@ import {
   ListKnowledgeDto,
   DeleteKnowledgeDto,
   DetailKnowledgeDto,
+  DownloadKnowledgeDto,
 } from "./knowledge.dto";
+
+// 文件大小限制：5MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 @ApiTags("Knowledge")
 @Controller("knowledge")
@@ -32,8 +38,12 @@ export class KnowledgeController {
 
   @Post("upload")
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(FileInterceptor("file"))
-  @ApiOperation({ summary: "上传知识库文件" })
+  @UseInterceptors(
+    FileInterceptor("file", {
+      limits: { fileSize: MAX_FILE_SIZE },
+    })
+  )
+  @ApiOperation({ summary: "上传知识库文件（最大5MB）" })
   @ApiConsumes("multipart/form-data")
   @ApiBody({
     schema: {
@@ -48,9 +58,18 @@ export class KnowledgeController {
     },
   })
   @ApiResponse({ status: 200, description: "上传成功" })
-  async upload(@Body() dto: UploadKnowledgeDto, @UploadedFile() file: any) {
+  async upload(
+    @Body() dto: UploadKnowledgeDto,
+    @UploadedFile() file: Express.Multer.File
+  ) {
     if (!file) {
       throw new BadRequestException("请选择要上传的文件");
+    }
+    // 二次校验文件大小（防止绕过 multer 限制）
+    if (file.size > MAX_FILE_SIZE) {
+      throw new BadRequestException(
+        `文件大小超过限制，最大允许 ${MAX_FILE_SIZE / 1024 / 1024}MB，当前文件大小 ${file.size / 1024 / 1024}MB`
+      );
     }
     return this.knowledgeService.uploadFile(Number(dto.userId), file);
   }
@@ -98,5 +117,31 @@ export class KnowledgeController {
   @ApiResponse({ status: 200, description: "获取成功" })
   async detail(@Body() dto: DetailKnowledgeDto) {
     return this.knowledgeService.getDetail(Number(dto.userId), Number(dto.id));
+  }
+
+  @Post("download")
+  @ApiOperation({ summary: "下载知识库源文件" })
+  @ApiResponse({ status: 200, description: "下载成功" })
+  async download(
+    @Body() dto: DownloadKnowledgeDto,
+    @Res() res: Response
+  ): Promise<void> {
+    const result = await this.knowledgeService.downloadFile(
+      Number(dto.userId),
+      Number(dto.id)
+    );
+
+    const { fileName, mimeType, fileData } = result.data;
+
+    // 设置响应头
+    res.set({
+      "Content-Type": mimeType,
+      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+      "Content-Length": fileData.length.toString(),
+      "Cache-Control": "no-cache",
+    });
+
+    // 使用 end() 发送原始二进制数据，避免 send() 可能的转换
+    res.end(fileData);
   }
 }

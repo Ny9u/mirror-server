@@ -94,6 +94,7 @@ model Knowledge {
   preview   String?  @db.Text
   size      Int?
   type      String?
+  fileData  Bytes?   // 存储源文件二进制数据
   embedding Unsupported("vector(1536)")?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

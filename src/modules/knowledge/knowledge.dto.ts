@@ -75,3 +75,15 @@ export class DetailKnowledgeDto {
   @IsNumber()
   id: number;
 }
+
+export class DownloadKnowledgeDto {
+  @ApiProperty({ description: "用户ID" })
+  @Type(() => Number)
+  @IsNumber()
+  userId: number;
+
+  @ApiProperty({ description: "文件ID" })
+  @Type(() => Number)
+  @IsNumber()
+  id: number;
+}
