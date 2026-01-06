@@ -95,7 +95,8 @@ export class KnowledgeController {
     return this.knowledgeService.getList(
       Number(dto.userId),
       Number(dto.page || 1),
-      Number(dto.pageSize || 10)
+      Number(dto.pageSize || 10),
+      dto.types
     );
   }
 

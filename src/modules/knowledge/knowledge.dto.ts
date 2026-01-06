@@ -45,6 +45,15 @@ export class ListKnowledgeDto {
   @Type(() => Number)
   @IsNumber()
   pageSize?: number = 10;
+
+  @ApiProperty({
+    description:
+      "多类型筛选 (1:pdf, 2:docx, 3:doc, 4:xlsx, 5:xls, 6:text, 7:markdown)",
+    required: false,
+    type: [Number],
+  })
+  @IsNumber({}, { each: true })
+  types?: number[];
 }
 
 export class DeleteKnowledgeDto {

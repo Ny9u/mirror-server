@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { ConfigService } from "@nestjs/config";
 import { OpenAIEmbeddings } from "@langchain/openai";
@@ -89,6 +90,16 @@ export class KnowledgeService {
     "xlsx",
     "xls",
   ];
+
+  private readonly typeMap: Record<number, string[]> = {
+    1: ["pdf"],
+    2: ["docx"],
+    3: ["doc"],
+    4: ["xlsx"],
+    5: ["xls"],
+    6: ["txt", "text"],
+    7: ["md", "markdown"],
+  };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -685,32 +696,78 @@ export class KnowledgeService {
     return mergedResults;
   }
 
-  async getList(userId: number, page: number = 1, pageSize: number = 10) {
+  async getList(
+    userId: number,
+    page: number = 1,
+    pageSize: number = 10,
+    types?: number[]
+  ) {
     try {
       const skip = (page - 1) * pageSize;
 
-      const [totalResult, list] = await Promise.all([
-        this.prisma.$queryRaw<{ count: bigint }[]>`
-          SELECT COUNT(DISTINCT "fileName") as count 
-          FROM "Knowledge" 
-          WHERE "userId" = ${userId}
-        `,
-        this.prisma.$queryRaw<KnowledgeListItem[]>`
-          SELECT 
-            MAX(id) as id, 
-            "fileName", 
-            MAX(preview) as preview,
-            MAX(size) as size,
-            MAX(type) as type,
-            MAX("createdAt") as "createdAt", 
-            MAX("updatedAt") as "updatedAt"
-          FROM "Knowledge"
-          WHERE "userId" = ${userId}
-          GROUP BY "fileName"
-          ORDER BY "createdAt" DESC
-          LIMIT ${pageSize} OFFSET ${skip}
-        `,
-      ]);
+      // 解析映射后的类型字符串列表
+      let typeStrings: string[] = [];
+      if (types && types.length > 0) {
+        types.forEach((t) => {
+          if (this.typeMap[t]) {
+            typeStrings = typeStrings.concat(this.typeMap[t]);
+          }
+        });
+      }
+
+      // 使用 Prisma 的 $queryRaw 并动态构建参数
+      let totalResult: { count: bigint }[];
+      let list: KnowledgeListItem[];
+
+      if (typeStrings.length > 0) {
+        // 当有类型筛选时
+        [totalResult, list] = await Promise.all([
+          this.prisma.$queryRaw<{ count: bigint }[]>`
+            SELECT COUNT(DISTINCT "fileName") as count 
+            FROM "Knowledge" 
+            WHERE "userId" = ${userId} AND "type" IN (${Prisma.join(typeStrings)})
+          `,
+          this.prisma.$queryRaw<KnowledgeListItem[]>`
+            SELECT 
+              MAX(id) as id, 
+              "fileName", 
+              MAX(preview) as preview,
+              MAX(size) as size,
+              MAX(type) as type,
+              MAX("createdAt") as "createdAt", 
+              MAX("updatedAt") as "updatedAt"
+            FROM "Knowledge"
+            WHERE "userId" = ${userId} AND "type" IN (${Prisma.join(typeStrings)})
+            GROUP BY "fileName"
+            ORDER BY "createdAt" DESC
+            LIMIT ${pageSize} OFFSET ${skip}
+          `,
+        ]);
+      } else {
+        // 没有筛选或 types 为空时
+        [totalResult, list] = await Promise.all([
+          this.prisma.$queryRaw<{ count: bigint }[]>`
+            SELECT COUNT(DISTINCT "fileName") as count 
+            FROM "Knowledge" 
+            WHERE "userId" = ${userId}
+          `,
+          this.prisma.$queryRaw<KnowledgeListItem[]>`
+            SELECT 
+              MAX(id) as id, 
+              "fileName", 
+              MAX(preview) as preview,
+              MAX(size) as size,
+              MAX(type) as type,
+              MAX("createdAt") as "createdAt", 
+              MAX("updatedAt") as "updatedAt"
+            FROM "Knowledge"
+            WHERE "userId" = ${userId}
+            GROUP BY "fileName"
+            ORDER BY "createdAt" DESC
+            LIMIT ${pageSize} OFFSET ${skip}
+          `,
+        ]);
+      }
 
       const total = Number(totalResult[0]?.count || 0);
 
