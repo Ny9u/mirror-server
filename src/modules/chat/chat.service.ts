@@ -107,9 +107,21 @@ export class ChatService {
         dto.minSimilarity ?? 0.2
       );
       if (searchResult.success && searchResult.results.length > 0) {
-        const knowledgeContext = searchResult.results
-          .map((res) => `[来自文件: ${res.fileName}]\n${res.content}`)
-          .join("\n\n");
+        const knowledgeContext = `
+          ## 参考资料（按相关性排序）
+          ${searchResult.results
+            .map(
+              (res, i) => `
+            ### 资料 ${i + 1} [相似度: ${(res.similarity * 100).toFixed(1)}%]
+              - 来源: ${res.fileName}
+              - 内容: ${res.content}
+            `
+            )
+            .join("\n\n")}
+          ## 回答要求
+            1. 优先使用上述参考资料回答
+            2. 若资料不足，可结合自身知识补充
+        `;
         systemContent += `\n\n以下是与用户问题相关的参考资料，请优先根据这些内容进行回答，若资料不足以回答问题，请根据自己的知识进行回答：\n\n${knowledgeContext}`;
       }
     }
