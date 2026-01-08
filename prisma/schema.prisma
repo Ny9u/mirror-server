@@ -101,3 +101,15 @@ model Knowledge {
 
   @@index([userId])
 }
+
+model UserSession {
+  @@map("UserSession")
+  id           String   @id @default(uuid())
+  userId       Int
+  refreshToken String   @unique
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  @@index([userId])
+  @@index([refreshToken])
+}

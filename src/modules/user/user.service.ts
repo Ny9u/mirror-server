@@ -22,6 +22,7 @@ import {
 import * as bcrypt from "bcrypt";
 import { AvatarService } from "../avatar/avatar.service";
 import { RefreshTokenService } from "../auth/services/refresh-token.service";
+import { SessionService } from "../auth/services/session.service";
 import { JwtPayload } from "../../config/jwt.strategy";
 import { EncryptionService } from "../encryption/encryption.service";
 import { VerificationService } from "../email/verification.service";
@@ -30,6 +31,9 @@ import { VerificationService } from "../email/verification.service";
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "未知错误";
 }
+
+// Refresh token 过期时间（7天）
+const REFRESH_TOKEN_EXPIRES_IN_DAYS = 7;
 
 @Injectable()
 export class UserService {
@@ -40,7 +44,9 @@ export class UserService {
     private encryptionService: EncryptionService,
     private verificationService: VerificationService,
     @Inject(forwardRef(() => RefreshTokenService))
-    private readonly refreshTokenService: RefreshTokenService
+    private readonly refreshTokenService: RefreshTokenService,
+    @Inject(forwardRef(() => SessionService))
+    private readonly sessionService: SessionService
   ) {}
 
   /**
@@ -183,6 +189,11 @@ export class UserService {
     };
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.refreshTokenService.generateRefreshToken(payload);
+
+    // 创建新会话，同时删除该用户的所有旧会话
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRES_IN_DAYS);
+    await this.sessionService.createSession(user.id, refreshToken, expiresAt);
 
     return {
       user: {
