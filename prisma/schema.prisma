@@ -113,3 +113,31 @@ model UserSession {
   @@index([userId])
   @@index([refreshToken])
 }
+
+model Role {
+  @@map("Role")
+  id          Int      @id @default(autoincrement())
+  name        String   
+  description String?  @db.Text 
+  avatar      String?
+  avatarColor String?
+  prompt      String   @db.Text 
+  isSystem    Boolean  @default(false) 
+  userId      Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isSystem])
+}
+
+model UserRole {
+  @@map("UserRole")
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  roleId    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([roleId])
+}

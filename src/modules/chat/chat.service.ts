@@ -7,6 +7,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
 import { KnowledgeService } from "../knowledge/knowledge.service";
+import { RoleService } from "../role/role.service";
 import { ChatDto } from "./chat.dto";
 import OpenAI from "openai";
 import * as crypto from "crypto";
@@ -68,7 +69,8 @@ export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
-    private readonly knowledgeService: KnowledgeService
+    private readonly knowledgeService: KnowledgeService,
+    private readonly roleService: RoleService
   ) {}
 
   async chatStream(
@@ -96,7 +98,11 @@ export class ChatService {
     // 2. 确定 chatId 和获取上下文
     let chatId = dto.chatId;
     let isNewConversation = false;
-    let systemContent = "你是一个专业、精准、高效的智能问答助手,名字叫Mirror。";
+
+    // 获取用户选择的角色prompt，如果没有则使用默认
+    let systemContent = userId
+      ? await this.roleService.getUserSystemPrompt(userId)
+      : "你是一个专业、精准、高效的智能问答助手，名字叫Mirror。";
 
     // 3. 知识库检索
     if (dto.enableKnowledge && userId) {

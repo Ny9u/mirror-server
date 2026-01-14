@@ -15,6 +15,7 @@ import { FavoriteModule } from "./modules/favorite/favorite.module";
 import { ConversationModule } from "./modules/conversation/conversation.module";
 import { KnowledgeModule } from "./modules/knowledge/knowledge.module";
 import { ChatModule } from "./modules/chat/chat.module";
+import { RoleModule } from "./modules/role/role.module";
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { ChatModule } from "./modules/chat/chat.module";
     ConversationModule,
     KnowledgeModule,
     ChatModule,
+    RoleModule,
   ],
   controllers: [AppController],
   providers: [AppService],
