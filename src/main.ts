@@ -7,6 +7,7 @@ import { join } from "path";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { readdirSync, unlinkSync } from "fs";
 import { Request, Response, NextFunction } from "express";
+import cookieParser from "cookie-parser";
 
 // 扩展 Request 类型以包含 rawBody
 interface RawBodyRequest extends Request {
@@ -33,15 +34,18 @@ function clearCacheDirectory() {
     }
 
     clearDirectoryRecursively(cacheRootDir);
-    console.log("缓存目录已清空");
+    console.log("头像缓存目录已清空");
   } catch (error) {
-    console.error("清空缓存目录失败:", error);
+    console.error("清空头像缓存目录失败:", error);
   }
 }
 
 async function bootstrap() {
   // 创建Nest应用(根模块)
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // 使用 cookie-parser 中间件
+  app.use(cookieParser());
 
   // 配置raw body中间件，用于处理加密数据的用户相关接口
   const routesNeedingRawBody = new Set([
@@ -111,9 +115,10 @@ async function bootstrap() {
   app.setGlobalPrefix("api/v1");
   // 启用CORS
   app.enableCors({
-    origin: true,
+    origin: process.env.FRONTEND_URL || true, // 生产环境指定具体的前端 URL
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
     allowedHeaders: "Content-Type,Authorization",
+    credentials: true, // 允许携带 Cookie
   });
 
   process.on("SIGINT", () => {
@@ -130,6 +135,6 @@ async function bootstrap() {
     });
   });
 
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(process.env.PORT ?? 3000, "0.0.0.0");
 }
 void bootstrap();

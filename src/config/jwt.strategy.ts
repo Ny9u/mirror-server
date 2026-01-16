@@ -1,6 +1,7 @@
 import { ExtractJwt, Strategy } from "passport-jwt";
 import { PassportStrategy } from "@nestjs/passport";
 import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { Request } from "express";
 import { jwtConfig } from "./jwt.config";
 import { UserService } from "../modules/user/user.service";
 import { UserDto } from "../modules/user/user.dto";
@@ -16,7 +17,17 @@ export interface JwtPayload {
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(private readonly userService: UserService) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(), // 从Authorization头中提取Bearer令牌
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        // 尝试从 Cookie 中提取
+        (request: Request) => {
+          const token = (
+            request?.cookies as { access_token?: string } | undefined
+          )?.access_token;
+          return token ?? null;
+        },
+        // 如果 Cookie 中没有，再尝试从 Authorization header 提取（向后兼容）
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ]),
       ignoreExpiration: false,
       secretOrKey: (jwtConfig.secret as string) || "your-secret-key",
     });

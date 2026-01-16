@@ -9,12 +9,13 @@ import {
   HttpStatus,
   HttpCode,
   Req,
+  Res,
   RawBodyRequest,
   BadRequestException,
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { Request as ExpressRequest } from "express";
+import { Request as ExpressRequest, Response } from "express";
 import { UserService } from "./user.service";
 import {
   UserDto,
@@ -61,7 +62,13 @@ export class UserController {
     } else {
       throw new BadRequestException("非法的请求体格式");
     }
-    return this.userService.register(encryptedData);
+    const authResponse = await this.userService.register(encryptedData);
+
+    // 注册成功后不立即设置 Cookie，用户需要登录
+    // 只返回用户信息
+    return {
+      user: authResponse.user,
+    };
   }
 
   @Post("login")
@@ -69,7 +76,8 @@ export class UserController {
   @ApiResponse({ status: 200, description: "登录成功" })
   @ApiResponse({ status: 401, description: "用户名或密码错误" })
   async login(
-    @Req() req: RawBodyRequest<ExpressRequest>
+    @Req() req: RawBodyRequest<ExpressRequest>,
+    @Res({ passthrough: true }) res: Response
   ): Promise<AuthResponseDto> {
     // 获取原始请求体（Buffer格式）
     const rawBody = req.rawBody;
@@ -82,7 +90,29 @@ export class UserController {
     } else {
       throw new BadRequestException("非法的请求体格式");
     }
-    return this.userService.login(encryptedData);
+    const authResponse = await this.userService.login(encryptedData);
+
+    // 设置 HttpOnly Cookie
+    // Access Token: 12 小时
+    res.cookie("access_token", authResponse.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 12 * 60 * 60 * 1000, // 12 小时
+    });
+
+    // Refresh Token: 7 天
+    res.cookie("refresh_token", authResponse.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 天
+    });
+
+    // 返回用户信息
+    return {
+      user: authResponse.user,
+    };
   }
 
   @Get()
