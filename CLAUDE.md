@@ -120,11 +120,16 @@ docker run -p 3000:3000 mirror-server
    - 加载用户选择的角色 prompt（通过 `RoleService`）
    - 如果启用知识库，通过向量检索注入相关上下文
    - 加载历史对话（如果 chatId 存在）
-3. **流式响应**: 使用 RxJS Observable 实现 SSE 流式输出
-4. **对话存储**:
+3. **多模态支持**:
+   - 支持图像分析（URL 或 Base64 格式）
+   - 支持文件内容分析（文本文件直接读取，二进制文件 Base64 编码）
+   - 自动将图像和文件内容整合到 OpenAI 消息中
+4. **流式响应**: 使用 RxJS Observable 实现 SSE 流式输出
+5. **对话存储**:
    - 新对话会自动生成标题
    - 支持思维链（reasoning_content）的存储和展示
    - 消息结构化存储为 MessageContentPart 数组
+   - 多模态消息会标注附件数量
 
 ### 知识库检索架构
 

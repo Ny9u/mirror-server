@@ -8,13 +8,13 @@ import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
 import { KnowledgeService } from "../knowledge/knowledge.service";
 import { RoleService } from "../role/role.service";
-import { ChatDto } from "./chat.dto";
+import { ChatDto, ImageData } from "./chat.dto";
 import OpenAI from "openai";
 import * as crypto from "crypto";
 import { Observable } from "rxjs";
 
-// 消息内容片段类型
-interface MessageContentPart {
+// 存储的消息内容片段类型
+interface StoredMessageContentPart {
   type: "thinking" | "content";
   data: string;
 }
@@ -22,7 +22,7 @@ interface MessageContentPart {
 // 存储的消息格式
 interface StoredMessage {
   role: "system" | "user" | "assistant";
-  content: string | MessageContentPart[];
+  content: string | StoredMessageContentPart[];
   key?: string;
   time?: string;
   reasoning_content?: string;
@@ -57,10 +57,20 @@ interface StreamChunk {
   }>;
 }
 
-// OpenAI 消息参数类型
+// OpenAI 消息内容部分（支持多模态）
+interface MessageContentPart {
+  type: "text" | "image_url";
+  text?: string;
+  image_url?: {
+    url: string;
+    detail?: "auto" | "low" | "high";
+  };
+}
+
+// OpenAI 消息参数类型（支持多模态）
 interface ChatMessage {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | MessageContentPart[];
   reasoning_content?: string;
 }
 
@@ -222,15 +232,79 @@ export class ChatService {
       chatId = "";
     }
 
+    // 构建用户消息内容（支持多模态）
+    const userContentParts: MessageContentPart[] = [];
+
+    // 添加文本内容
+    userContentParts.push({
+      type: "text",
+      text: dto.content,
+    });
+
+    // 添加图像（如果有）
+    if (dto.images && dto.images.length > 0) {
+      for (const image of dto.images) {
+        if (image.url) {
+          userContentParts.push({
+            type: "image_url",
+            image_url: {
+              url: image.url,
+              detail: "auto",
+            },
+          });
+        } else if (image.base64 && image.mimeType) {
+          // Base64 图像需要转换为 data URL
+          const dataUrl = `data:${image.mimeType};base64,${image.base64}`;
+          userContentParts.push({
+            type: "image_url",
+            image_url: {
+              url: dataUrl,
+              detail: "auto",
+            },
+          });
+        }
+      }
+    }
+
+    // 添加文件内容（转换为文本描述）
+    if (dto.files && dto.files.length > 0) {
+      let filesText = "\n\n以下是用户上传的文件内容：\n";
+      for (const file of dto.files) {
+        filesText += `\n文件名: ${file.fileName}\n`;
+        filesText += `类型: ${file.mimeType}\n`;
+        if (file.size) {
+          filesText += `大小: ${(file.size / 1024).toFixed(2)} KB\n`;
+        }
+        filesText += `内容:\n${file.content}\n`;
+        filesText += "---\n";
+      }
+      // 将文件内容追加到第一个文本部分
+      if (userContentParts[0] && userContentParts[0].type === "text") {
+        userContentParts[0].text += filesText;
+      }
+    }
+
     const userMessage: StoredMessage = {
       role: "user",
-      content: [{ type: "content", data: dto.content }],
+      content: [
+        {
+          type: "content",
+          data: dto.content +
+                (dto.images ? `\n[包含 ${dto.images.length} 张图片]` : "") +
+                (dto.files ? `\n[包含 ${dto.files.length} 个文件]` : "")
+        }
+      ],
       key: this.getRandomKey(),
       time: this.formatChineseTime(new Date()),
     };
 
-    // 给 OpenAI 的消息格式需要保持为字符串或符合其规范的数组
-    messages.push({ role: "user", content: dto.content });
+    // 给 OpenAI 的消息格式（多模态内容）
+    messages.push({
+      role: "user",
+      content: userContentParts.length === 1 && userContentParts[0].type === "text"
+        ? (userContentParts[0].text || dto.content)
+        : userContentParts,
+    });
 
     const openai = new OpenAI({
       apiKey: apiKey,
@@ -296,7 +370,7 @@ export class ChatService {
 
           // 5. 只有已登录用户才保存对话详情
           if (userId && chatId) {
-            const assistantContent: MessageContentPart[] = [];
+            const assistantContent: StoredMessageContentPart[] = [];
             if (fullReasoning) {
               assistantContent.push({ type: "thinking", data: fullReasoning });
             }

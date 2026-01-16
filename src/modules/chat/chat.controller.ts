@@ -8,13 +8,17 @@ import {
   Res,
   UseGuards,
   Injectable,
+  UseInterceptors,
+  UploadedFiles,
 } from "@nestjs/common";
-import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
+import { FileFieldsInterceptor } from "@nestjs/platform-express";
+import { ApiTags, ApiOperation, ApiResponse, ApiConsumes } from "@nestjs/swagger";
 import { ChatService } from "./chat.service";
-import { ChatDto } from "./chat.dto";
+import { ChatDto, ImageData, FileData } from "./chat.dto";
 import { Response, Request as ExpressRequest } from "express";
 import { AuthGuard } from "@nestjs/passport";
 import { UserDto } from "../user/user.dto";
+import { readFileSync } from "fs";
 
 // 定义带用户信息的请求接口
 interface AuthenticatedRequest extends ExpressRequest {
@@ -29,7 +33,7 @@ interface SseEvent {
 @Injectable()
 export class OptionalJwtAuthGuard extends AuthGuard("jwt") {
   handleRequest<UserDto>(
-    err: Error | null,
+    _err: Error | null,
     user: UserDto | false
   ): UserDto | null {
     // 如果有错误或没有用户，不抛出异常，只返回 null
@@ -45,19 +49,75 @@ export class ChatController {
 
   @Post()
   @UseGuards(OptionalJwtAuthGuard)
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: "images", maxCount: 10 }, // 最多 10 张图片
+      { name: "files", maxCount: 5 }, // 最多 5 个文件
+    ])
+  )
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "发送聊天消息（流式响应）" })
+  @ApiConsumes("multipart/form-data")
+  @ApiOperation({ summary: "发送聊天消息（流式响应，支持多模态）" })
   @ApiResponse({ status: 200, description: "成功开始流式输出" })
   @ApiResponse({ status: 401, description: "未授权" })
   @ApiResponse({ status: 400, description: "请求参数错误或模型配置缺失" })
   async chat(
     @Request() req: AuthenticatedRequest,
     @Body() dto: ChatDto,
-    @Res() res: Response
+    @Res() res: Response,
+    @UploadedFiles()
+    uploadedFiles?: {
+      images?: Express.Multer.File[];
+      files?: Express.Multer.File[];
+    }
   ): Promise<void> {
     const userId = req.user?.id;
 
     try {
+      // 处理上传的图片
+      if (uploadedFiles?.images && uploadedFiles.images.length > 0) {
+        const imageData: ImageData[] = uploadedFiles.images.map((file) => {
+          // 将图片转换为 Base64
+          const base64 = readFileSync(file.path).toString("base64");
+          return {
+            base64,
+            mimeType: file.mimetype,
+          };
+        });
+         
+        const existingImages = dto.images && Array.isArray(dto.images) ? dto.images : [];
+         
+        dto.images = [...existingImages, ...imageData];
+      }
+
+      // 处理上传的文件
+      if (uploadedFiles?.files && uploadedFiles.files.length > 0) {
+        const fileData: FileData[] = uploadedFiles.files.map((file) => {
+          let content: string;
+          const isTextFile = file.mimetype.startsWith("text/") ||
+                             file.mimetype === "application/json";
+
+          if (isTextFile) {
+            // 文本文件直接读取内容
+            content = readFileSync(file.path, "utf-8");
+          } else {
+            // 二进制文件转 Base64
+            content = readFileSync(file.path).toString("base64");
+          }
+
+          return {
+            fileName: file.originalname,
+            content,
+            mimeType: file.mimetype,
+            size: file.size,
+          };
+        });
+         
+        const existingFiles = dto.files && Array.isArray(dto.files) ? dto.files : [];
+         
+        dto.files = [...existingFiles, ...fileData];
+      }
+
       const observable = await this.chatService.chatStream(userId, dto);
 
       res.setHeader("Content-Type", "text/event-stream");

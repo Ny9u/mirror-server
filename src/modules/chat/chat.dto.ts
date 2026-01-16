@@ -4,14 +4,48 @@ import {
   IsNotEmpty,
   IsBoolean,
   IsNumber,
+  IsArray,
 } from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
+
+// 图像数据接口
+export interface ImageData {
+  url?: string; // 图像 URL
+  base64?: string; // 或 Base64 编码的图像数据
+  mimeType?: string; // 图像 MIME 类型，如 image/jpeg, image/png
+}
+
+// 文件数据接口
+export interface FileData {
+  fileName: string; // 文件名
+  content: string; // 文件内容（文本）或 Base64（二进制）
+  mimeType: string; // 文件 MIME 类型
+  size?: number; // 文件大小（字节）
+}
 
 export class ChatDto {
   @ApiProperty({ description: "用户输入的内容", example: "你好" })
   @IsString()
   @IsNotEmpty()
   content: string;
+
+  @ApiProperty({
+    description: "图像数组（可选），支持 URL 或 Base64",
+    example: [{ url: "https://example.com/image.jpg" }],
+    required: false,
+  })
+  @IsArray()
+  @IsOptional()
+  images?: ImageData[];
+
+  @ApiProperty({
+    description: "文件数组（可选），用于文件分析",
+    example: [{ fileName: "document.txt", content: "...", mimeType: "text/plain" }],
+    required: false,
+  })
+  @IsArray()
+  @IsOptional()
+  files?: FileData[];
 
   @ApiProperty({
     description:
