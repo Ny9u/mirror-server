@@ -101,6 +101,13 @@ export class ChatService {
       this.configService.get<string>("DEFAULT_BASE_URL");
     const modelName = dto.model || "deepseek-v3.1";
 
+    // 校验图片处理模型限制
+    if (dto.images && dto.images.length > 0 && modelName !== "qwen3-vl-plus") {
+      throw new BadRequestException(
+        `模型 "${modelName}" 不支持图片处理，请切换至 "qwen3-vl-plus" 模型。`
+      );
+    }
+
     if (!apiKey || !baseURL) {
       throw new BadRequestException("未配置个人 API Key 和 Base URL");
     }
@@ -157,6 +164,35 @@ export class ChatService {
         if (!conversation) throw new NotFoundException("对话不存在");
         if (conversation.userId !== userId)
           throw new UnauthorizedException("无权访问该对话");
+
+        // 处理重新生成/编辑逻辑
+        if (dto.isRegenerate && chatId) {
+          const detail = await this.prisma.conversationDetail.findFirst({
+            where: { conversationId: chatId },
+          });
+
+          if (detail && Array.isArray(detail.content)) {
+            const currentContent = detail.content as unknown as StoredMessage[];
+            if (currentContent.length > 0) {
+              // 查找最后一条助理消息和其对应的用户消息
+              let lastIndex = currentContent.length - 1;
+              if (currentContent[lastIndex].role === "assistant") {
+                currentContent.pop();
+                lastIndex--;
+              }
+              if (lastIndex >= 0 && currentContent[lastIndex].role === "user") {
+                currentContent.pop();
+              }
+
+              await this.prisma.conversationDetail.update({
+                where: { id: detail.id },
+                data: {
+                  content: currentContent as unknown as object[],
+                },
+              });
+            }
+          }
+        }
 
         const details = await this.prisma.conversationDetail.findMany({
           where: { conversationId: chatId },
@@ -235,38 +271,40 @@ export class ChatService {
     // 构建用户消息内容（支持多模态）
     const userContentParts: MessageContentPart[] = [];
 
-    // 添加文本内容
-    userContentParts.push({
-      type: "text",
-      text: dto.content,
-    });
-
-    // 添加图像（如果有）
+    // 添加图像
     if (dto.images && dto.images.length > 0) {
       for (const image of dto.images) {
-        if (image.url) {
+        let imageUrl: string | undefined;
+
+        if (typeof image === "string") {
+          imageUrl = image;
+        } else if (typeof image === "object" && image !== null) {
+          imageUrl = image.url || image.base64;
+        }
+
+        if (imageUrl) {
+          if (!imageUrl.startsWith("http") && !imageUrl.startsWith("data:")) {
+            const mimeType =
+              typeof image === "object" && image.mimeType
+                ? image.mimeType
+                : "image/png";
+            imageUrl = `data:${mimeType};base64,${imageUrl}`;
+          }
+
           userContentParts.push({
             type: "image_url",
             image_url: {
-              url: image.url,
-              detail: "auto",
-            },
-          });
-        } else if (image.base64 && image.mimeType) {
-          // Base64 图像需要转换为 data URL
-          const dataUrl = `data:${image.mimeType};base64,${image.base64}`;
-          userContentParts.push({
-            type: "image_url",
-            image_url: {
-              url: dataUrl,
-              detail: "auto",
+              url: imageUrl,
             },
           });
         }
       }
     }
 
-    // 添加文件内容（转换为文本描述）
+    // 添加文本内容
+    let finalContent = dto.content;
+
+    // 添加文件内容
     if (dto.files && dto.files.length > 0) {
       let filesText = "\n\n以下是用户上传的文件内容：\n";
       for (const file of dto.files) {
@@ -278,21 +316,21 @@ export class ChatService {
         filesText += `内容:\n${file.content}\n`;
         filesText += "---\n";
       }
-      // 将文件内容追加到第一个文本部分
-      if (userContentParts[0] && userContentParts[0].type === "text") {
-        userContentParts[0].text += filesText;
-      }
+      finalContent += filesText;
     }
+
+    userContentParts.push({
+      type: "text",
+      text: finalContent,
+    });
 
     const userMessage: StoredMessage = {
       role: "user",
       content: [
         {
           type: "content",
-          data: dto.content +
-                (dto.images ? `\n[包含 ${dto.images.length} 张图片]` : "") +
-                (dto.files ? `\n[包含 ${dto.files.length} 个文件]` : "")
-        }
+          data: dto.content,
+        },
       ],
       key: this.getRandomKey(),
       time: this.formatChineseTime(new Date()),
@@ -301,9 +339,10 @@ export class ChatService {
     // 给 OpenAI 的消息格式（多模态内容）
     messages.push({
       role: "user",
-      content: userContentParts.length === 1 && userContentParts[0].type === "text"
-        ? (userContentParts[0].text || dto.content)
-        : userContentParts,
+      content:
+        userContentParts.length === 1 && userContentParts[0].type === "text"
+          ? userContentParts[0].text || dto.content
+          : userContentParts,
     });
 
     const openai = new OpenAI({

@@ -36,11 +36,13 @@ export class ChatDto {
   })
   @IsArray()
   @IsOptional()
-  images?: ImageData[];
+  images?: (ImageData | string)[];
 
   @ApiProperty({
     description: "文件数组（可选），用于文件分析",
-    example: [{ fileName: "document.txt", content: "...", mimeType: "text/plain" }],
+    example: [
+      { fileName: "document.txt", content: "...", mimeType: "text/plain" },
+    ],
     required: false,
   })
   @IsArray()
@@ -90,6 +92,15 @@ export class ChatDto {
   @IsBoolean()
   @IsOptional()
   enableKnowledge?: boolean;
+
+  @ApiProperty({
+    description: "是否是重新生成或编辑触发的对话",
+    example: false,
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isRegenerate?: boolean;
 
   @ApiProperty({
     description: "知识库检索TopK",

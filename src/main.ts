@@ -6,7 +6,7 @@ import { ResponseInterceptor } from "./interceptors/response.interceptor";
 import { join } from "path";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { readdirSync, unlinkSync } from "fs";
-import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction, json, urlencoded } from "express";
 import cookieParser from "cookie-parser";
 
 // 扩展 Request 类型以包含 rawBody
@@ -43,6 +43,10 @@ function clearCacheDirectory() {
 async function bootstrap() {
   // 创建Nest应用(根模块)
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // 增大 Payload 限制，支持大文件上传
+  app.use(json({ limit: "50mb" }));
+  app.use(urlencoded({ limit: "50mb", extended: true }));
 
   // 使用 cookie-parser 中间件
   app.use(cookieParser());

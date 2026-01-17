@@ -10,15 +10,24 @@ import {
   Injectable,
   UseInterceptors,
   UploadedFiles,
+  BadRequestException,
 } from "@nestjs/common";
 import { FileFieldsInterceptor } from "@nestjs/platform-express";
-import { ApiTags, ApiOperation, ApiResponse, ApiConsumes } from "@nestjs/swagger";
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiConsumes,
+} from "@nestjs/swagger";
 import { ChatService } from "./chat.service";
 import { ChatDto, ImageData, FileData } from "./chat.dto";
 import { Response, Request as ExpressRequest } from "express";
 import { AuthGuard } from "@nestjs/passport";
 import { UserDto } from "../user/user.dto";
 import { readFileSync } from "fs";
+import WordExtractor from "word-extractor";
+import pdf from "pdf-parse";
+import * as mammoth from "mammoth";
 
 // 定义带用户信息的请求接口
 interface AuthenticatedRequest extends ExpressRequest {
@@ -77,44 +86,84 @@ export class ChatController {
       // 处理上传的图片
       if (uploadedFiles?.images && uploadedFiles.images.length > 0) {
         const imageData: ImageData[] = uploadedFiles.images.map((file) => {
-          // 将图片转换为 Base64
-          const base64 = readFileSync(file.path).toString("base64");
+          const buffer = file.buffer || readFileSync(file.path);
+          const base64 = buffer.toString("base64");
           return {
             base64,
             mimeType: file.mimetype,
           };
         });
-         
-        const existingImages = dto.images && Array.isArray(dto.images) ? dto.images : [];
-         
+
+        const existingImages =
+          dto.images && Array.isArray(dto.images) ? dto.images : [];
+
         dto.images = [...existingImages, ...imageData];
       }
 
       // 处理上传的文件
       if (uploadedFiles?.files && uploadedFiles.files.length > 0) {
-        const fileData: FileData[] = uploadedFiles.files.map((file) => {
-          let content: string;
-          const isTextFile = file.mimetype.startsWith("text/") ||
-                             file.mimetype === "application/json";
+        const fileData: FileData[] = await Promise.all(
+          uploadedFiles.files.map(async (file) => {
+            let content = "";
+            const fileExtension =
+              file.originalname.split(".").pop()?.toLowerCase() || "";
 
-          if (isTextFile) {
-            // 文本文件直接读取内容
-            content = readFileSync(file.path, "utf-8");
-          } else {
-            // 二进制文件转 Base64
-            content = readFileSync(file.path).toString("base64");
-          }
+            const isTextFile =
+              file.mimetype.startsWith("text/") ||
+              file.mimetype === "application/json" ||
+              ["md", "txt"].includes(fileExtension);
 
-          return {
-            fileName: file.originalname,
-            content,
-            mimeType: file.mimetype,
-            size: file.size,
-          };
-        });
-         
-        const existingFiles = dto.files && Array.isArray(dto.files) ? dto.files : [];
-         
+            const buffer = file.buffer || readFileSync(file.path);
+
+            if (isTextFile) {
+              // 文本文件直接读取内容
+              content = buffer.toString("utf-8");
+            } else if (fileExtension === "pdf") {
+              try {
+                const data = await pdf(buffer);
+                content = data.text;
+              } catch (error) {
+                throw new BadRequestException("PDF 解析失败: " + error);
+              }
+            } else if (fileExtension === "docx" || fileExtension === "doc") {
+              // Word 文件提取文本
+              try {
+                let extractedText = "";
+                const result = await mammoth.extractRawText({ buffer });
+                extractedText = result.value || "";
+
+                // 尝试 word-extractor
+                if (!extractedText.trim()) {
+                  try {
+                    const extractor = new WordExtractor();
+                    const extracted = await extractor.extract(buffer);
+                    extractedText = extracted.getBody() || "";
+                  } catch {
+                    throw new BadRequestException(
+                      "Word 文件解析失败：文件格式可能已损坏，或者不是有效的 .doc/.docx 文档"
+                    );
+                  }
+                }
+              } catch (error) {
+                throw new BadRequestException("Word 文件解析失败：" + error);
+              }
+            } else {
+              // 其他二进制文件转 Base64
+              content = buffer.toString("base64");
+            }
+
+            return {
+              fileName: file.originalname,
+              content,
+              mimeType: file.mimetype,
+              size: file.size,
+            };
+          })
+        );
+
+        const existingFiles =
+          dto.files && Array.isArray(dto.files) ? dto.files : [];
+
         dto.files = [...existingFiles, ...fileData];
       }
 
