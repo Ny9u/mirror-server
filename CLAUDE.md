@@ -81,7 +81,7 @@ docker run -p 3000:3000 mirror-server
 
 **业务功能模块：**
 - `UserModule`: 用户管理（注册、登录、密码重置）
-- `ChatModule`: 对话服务，支持流式响应和思维链
+- `ChatModule`: 对话服务，支持流式响应、思维链、多模态对话，以及 AI 图片生成（阿里云百炼）
 - `KnowledgeModule`: 知识库管理，支持向量检索和混合检索
 - `ConversationModule`: 对话历史管理
 - `RoleModule`: AI 角色管理（系统角色和用户自定义角色）
@@ -130,6 +130,32 @@ docker run -p 3000:3000 mirror-server
    - 支持思维链（reasoning_content）的存储和展示
    - 消息结构化存储为 MessageContentPart 数组
    - 多模态消息会标注附件数量
+
+### 图片生成服务
+
+`ChatService.generateImage()` (src/modules/chat/chat.service.ts:609) 实现了 AI 图片生成功能：
+
+1. **API 集成**: 调用阿里云百炼（DashScope）图片生成 API
+   - API 端点: `https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation`
+   - 请求格式: 使用 `input.messages` 对话式格式
+2. **认证方式**: 使用用户配置的 API Key（优先）或默认环境变量
+3. **图文混排支持**:
+   - 支持参考图片 URL（`refImg`）
+   - 支持参考图片 Base64（`refImgBase64`）
+   - 参考模式：`refonly`（仅参考）或 `repaint`（重绘）
+   - 图片和文本在 messages 的 content 数组中组合
+4. **异步任务轮询**:
+   - 自动处理同步和异步响应
+   - 异步任务自动轮询（最多 30 次，间隔 2 秒）
+5. **参数支持**:
+   - 模型选择（默认 `wanx-v1`）
+   - 尺寸选项（`1024*1024`, `720*1280`, `1280*720`）
+   - 负面提示词（negative_prompt）
+   - 随机种子（seed）用于结果复现
+   - 生成数量（n，1-4 张）
+
+**关键接口：**
+- `POST /api/v1/chat/generate-image`: 生成图片
 
 ### 知识库检索架构
 
@@ -187,8 +213,13 @@ docker run -p 3000:3000 mirror-server
 - `FRONTEND_URL`: 前端 URL（用于 CORS 配置，生产环境必须设置）
 
 **OpenAI：**
-- `DEFAULT_API_KEY`: 默认 API Key（用户未配置时使用）
+- `DEFAULT_API_KEY`: 默认 API Key（用户未配置时使用，同时也用于阿里云图片生成）
 - `DEFAULT_BASE_URL`: 默认 Base URL
+
+**阿里云百炼（图片生成）：**
+- 使用用户在 `ModelConfig` 中配置的 `apiKey`（优先）
+- 或使用 `DEFAULT_API_KEY` 环境变量（fallback）
+- API 端点：`https://dashscope.aliyuncs.com`
 
 **腾讯云（ASR/TTS）：**
 - `TENCENTCLOUD_SECRET_ID`

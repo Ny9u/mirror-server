@@ -20,7 +20,7 @@ import {
   ApiConsumes,
 } from "@nestjs/swagger";
 import { ChatService } from "./chat.service";
-import { ChatDto, ImageData, FileData } from "./chat.dto";
+import { ChatDto, ImageData, FileData, GenerateImageDto, GenerateImageResponseDto } from "./chat.dto";
 import { Response, Request as ExpressRequest } from "express";
 import { AuthGuard } from "@nestjs/passport";
 import { UserDto } from "../user/user.dto";
@@ -197,5 +197,23 @@ export class ChatController {
         message,
       });
     }
+  }
+
+  @Post("generate-image")
+  @UseGuards(OptionalJwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "生成图片（阿里云百炼，支持图文混排）" })
+  @ApiResponse({
+    status: 200,
+    description: "图片生成成功",
+    type: GenerateImageResponseDto
+  })
+  @ApiResponse({ status: 400, description: "请求参数错误或 API Key 配置缺失" })
+  async generateImage(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: GenerateImageDto
+  ): Promise<GenerateImageResponseDto> {
+    const userId = req.user?.id;
+    return await this.chatService.generateImage(userId, dto);
   }
 }

@@ -8,10 +8,16 @@ import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
 import { KnowledgeService } from "../knowledge/knowledge.service";
 import { RoleService } from "../role/role.service";
-import { ChatDto, ImageData } from "./chat.dto";
+import {
+  ChatDto,
+  ImageData,
+  GenerateImageDto,
+  GenerateImageResponseDto,
+} from "./chat.dto";
 import OpenAI from "openai";
 import * as crypto from "crypto";
 import { Observable } from "rxjs";
+import axios from "axios";
 
 // 存储的消息内容片段类型
 interface StoredMessageContentPart {
@@ -74,18 +80,44 @@ interface ChatMessage {
   reasoning_content?: string;
 }
 
+// 阿里云图片生成 API 响应类型
+interface AliyunImageGenerationResponse {
+  output?: {
+    task_id?: string;
+    task_status?: "SUCCEEDED" | "FAILED" | "PENDING" | "RUNNING";
+    results?: Array<{
+      url?: string;
+      seed?: number;
+    }>;
+    message?: string;
+  };
+  message?: string;
+}
+
+// 阿里云任务查询响应类型
+interface AliyunTaskQueryResponse {
+  output?: {
+    task_status?: "SUCCEEDED" | "FAILED" | "PENDING" | "RUNNING";
+    results?: Array<{
+      url?: string;
+      seed?: number;
+    }>;
+    message?: string;
+  };
+}
+
 @Injectable()
 export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly knowledgeService: KnowledgeService,
-    private readonly roleService: RoleService
+    private readonly roleService: RoleService,
   ) {}
 
   async chatStream(
     userId: number | undefined,
-    dto: ChatDto
+    dto: ChatDto,
   ): Promise<Observable<ChatSseEvent>> {
     // 1. 获取用户模型配置
     const modelConfig = userId
@@ -104,7 +136,7 @@ export class ChatService {
     // 校验图片处理模型限制
     if (dto.images && dto.images.length > 0 && modelName !== "qwen3-vl-plus") {
       throw new BadRequestException(
-        `模型 "${modelName}" 不支持图片处理，请切换至 "qwen3-vl-plus" 模型。`
+        `模型 "${modelName}" 不支持图片处理，请切换至 "qwen3-vl-plus" 模型。`,
       );
     }
 
@@ -127,7 +159,7 @@ export class ChatService {
         userId,
         dto.content,
         dto.topK ?? 5,
-        dto.minSimilarity ?? 0.2
+        dto.minSimilarity ?? 0.2,
       );
       if (searchResult.success && searchResult.results.length > 0) {
         const knowledgeContext = `
@@ -138,7 +170,7 @@ export class ChatService {
             ### 资料 ${i + 1} [相似度: ${(res.similarity * 100).toFixed(1)}%]
               - 来源: ${res.fileName}
               - 内容: ${res.content}
-            `
+            `,
             )
             .join("\n\n")}
           ## 回答要求
@@ -424,7 +456,7 @@ export class ChatService {
                 apiKey,
                 baseURL,
                 modelName,
-                dto.content
+                dto.content,
               );
               await this.prisma.userConversation.create({
                 data: {
@@ -494,7 +526,7 @@ export class ChatService {
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : "未知错误";
           subscriber.error(
-            new BadRequestException(`大模型流式调用失败: ${message}`)
+            new BadRequestException(`大模型流式调用失败: ${message}`),
           );
         }
       })();
@@ -513,7 +545,7 @@ export class ChatService {
     apiKey: string,
     baseURL: string,
     modelName: string,
-    content: string
+    content: string,
   ): Promise<string> {
     try {
       const openai = new OpenAI({ apiKey, baseURL });
@@ -571,5 +603,259 @@ export class ChatService {
     })
       .format(date)
       .replace(/\//g, "-");
+  }
+
+  /**
+   * 生成图片（阿里云百炼/DashScope API）
+   * @param userId 用户 ID
+   * @param dto 图片生成参数
+   * @returns 生成的图片 URL
+   */
+  async generateImage(
+    userId: number | undefined,
+    dto: GenerateImageDto,
+  ): Promise<GenerateImageResponseDto> {
+    // 1. 获取用户配置的阿里云 API Key
+    const modelConfig = userId
+      ? await this.prisma.modelConfig.findUnique({
+          where: { userId },
+        })
+      : null;
+
+    // 优先使用用户配置的 API Key，否则使用默认配置
+    const apiKey =
+      modelConfig?.apiKey || this.configService.get<string>("DEFAULT_API_KEY");
+
+    if (!apiKey) {
+      throw new BadRequestException("未配置阿里云 API Key");
+    }
+
+    // 2. 构建请求参数
+    const model = dto.model || "wanx-v1";
+    const size = dto.size || "1024*1024";
+    const n = dto.n || 1;
+
+    // 判断是否有参考图片（图文混排模式）
+    const hasRefImage = !!(dto.refImg || dto.refImgBase64);
+    const enableInterleave = dto.enableInterleave ?? hasRefImage;
+
+    // 构建请求体
+    const requestBody: {
+      model: string;
+      input: {
+        messages: Array<{
+          role: string;
+          content: Array<{ text?: string; image?: string }> | string;
+        }>;
+      };
+      parameters: {
+        size: string;
+        n: number;
+        seed?: number;
+        ref_mode?: string;
+        negative_prompt?: string;
+        prompt_extend?: boolean;
+        watermark?: boolean;
+        enable_interleave?: boolean;
+      };
+    } = {
+      model,
+      input: {
+        messages: [],
+      },
+      parameters: {
+        size,
+        n,
+      },
+    };
+
+    // 根据是否图文混排构建不同的消息格式
+    if (enableInterleave && hasRefImage) {
+      // 图文混排模式：content 是数组，包含文本和图片
+      const messageContent: Array<{
+        text?: string;
+        image?: string;
+      }> = [];
+
+      // 添加文本提示词
+      messageContent.push({
+        text: dto.prompt,
+      });
+
+      // 添加参考图片
+      if (dto.refImg) {
+        messageContent.push({
+          image: dto.refImg,
+        });
+      } else if (dto.refImgBase64) {
+        messageContent.push({
+          image: `data:image/jpeg;base64,${dto.refImgBase64}`,
+        });
+      }
+
+      requestBody.input.messages.push({
+        role: "user",
+        content: messageContent,
+      });
+
+      requestBody.parameters.enable_interleave = true;
+
+      if (dto.refMode) {
+        requestBody.parameters.ref_mode = dto.refMode;
+      }
+    } else {
+      // 传统文本生成模式：content 是字符串
+      requestBody.input.messages.push({
+        role: "user",
+        content: dto.prompt,
+      });
+
+      requestBody.parameters.enable_interleave = false;
+    }
+
+    // 添加通用可选参数
+    if (dto.negativePrompt) {
+      requestBody.parameters.negative_prompt = dto.negativePrompt;
+    }
+
+    if (dto.seed !== undefined) {
+      requestBody.parameters.seed = dto.seed;
+    }
+
+    if (dto.promptExtend !== undefined) {
+      requestBody.parameters.prompt_extend = dto.promptExtend;
+    }
+
+    if (dto.watermark !== undefined) {
+      requestBody.parameters.watermark = dto.watermark;
+    }
+
+    try {
+      // 3. 调用阿里云 DashScope API
+      const response = await axios.post<AliyunImageGenerationResponse>(
+        "https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation",
+        requestBody,
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "X-DashScope-Async": "enable", // 异步任务
+          },
+          timeout: 60000, // 60秒超时
+        },
+      );
+
+      // 4. 处理响应
+      const data = response.data;
+
+      if (data.output?.task_status === "SUCCEEDED") {
+        // 同步返回成功
+        const imageUrl = data.output.results?.[0]?.url;
+        if (!imageUrl) {
+          throw new BadRequestException("图片生成成功但未返回 URL");
+        }
+
+        return {
+          url: imageUrl,
+          taskId: data.output.task_id,
+          seed: data.output.results?.[0]?.seed,
+        };
+      } else if (
+        data.output?.task_status === "PENDING" ||
+        data.output?.task_id
+      ) {
+        // 异步任务，需要轮询查询结果
+        const taskId = data.output.task_id;
+        if (!taskId) {
+          throw new BadRequestException("未返回任务 ID");
+        }
+        return await this.pollImageGenerationTask(apiKey, taskId);
+      } else {
+        // 错误响应
+        const errorMessage = data.message || "图片生成失败";
+        throw new BadRequestException(`阿里云 API 错误: ${errorMessage}`);
+      }
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        const errorData = error.response?.data as
+          | AliyunImageGenerationResponse
+          | undefined;
+        const errorMessage = errorData?.message || error.message;
+        const statusCode = error.response?.status;
+        throw new BadRequestException(
+          `阿里云图片生成失败 (${statusCode}): ${errorMessage}`,
+        );
+      }
+      throw new BadRequestException(
+        `图片生成失败: ${error instanceof Error ? error.message : "未知错误"}`,
+      );
+    }
+  }
+
+  /**
+   * 轮询查询异步图片生成任务状态
+   * @param apiKey API Key
+   * @param taskId 任务 ID
+   * @returns 生成的图片 URL
+   */
+  private async pollImageGenerationTask(
+    apiKey: string,
+    taskId: string,
+  ): Promise<GenerateImageResponseDto> {
+    const maxRetries = 30; // 最多轮询 30 次
+    const retryInterval = 2000; // 每 2 秒轮询一次
+
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const response = await axios.get<AliyunTaskQueryResponse>(
+          `https://dashscope.aliyuncs.com/api/v1/tasks/${taskId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+            },
+          },
+        );
+
+        const data = response.data;
+        const status = data.output?.task_status;
+
+        if (status === "SUCCEEDED") {
+          if (!data.output) {
+            throw new BadRequestException("响应数据格式错误");
+          }
+          const imageUrl = data.output.results?.[0]?.url;
+          if (!imageUrl) {
+            throw new BadRequestException("图片生成成功但未返回 URL");
+          }
+
+          return {
+            url: imageUrl,
+            taskId,
+            seed: data.output.results?.[0]?.seed,
+          };
+        } else if (status === "FAILED") {
+          const errorMessage = data.output?.message || "任务失败";
+          throw new BadRequestException(`图片生成失败: ${errorMessage}`);
+        } else if (status === "PENDING" || status === "RUNNING") {
+          // 继续等待
+          await new Promise((resolve) => setTimeout(resolve, retryInterval));
+        } else {
+          throw new BadRequestException(
+            `未知任务状态: ${status ?? "undefined"}`,
+          );
+        }
+      } catch (error: unknown) {
+        if (axios.isAxiosError(error)) {
+          const errorData = error.response?.data as
+            | AliyunTaskQueryResponse
+            | undefined;
+          const errorMessage = errorData?.output?.message || error.message;
+          throw new BadRequestException(`查询任务状态失败: ${errorMessage}`);
+        }
+        throw error;
+      }
+    }
+
+    throw new BadRequestException("图片生成超时，请稍后重试");
   }
 }
