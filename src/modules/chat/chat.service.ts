@@ -669,20 +669,19 @@ export class ChatService {
       },
     };
 
-    // 根据是否图文混排构建不同的消息格式
-    if (enableInterleave && hasRefImage) {
-      // 图文混排模式：content 是数组，包含文本和图片
-      const messageContent: Array<{
-        text?: string;
-        image?: string;
-      }> = [];
+    // 统一使用数组格式构建 content，以满足 API 要求
+    const messageContent: Array<{
+      text?: string;
+      image?: string;
+    }> = [];
 
-      // 添加文本提示词
-      messageContent.push({
-        text: dto.prompt,
-      });
+    // 添加文本提示词
+    messageContent.push({
+      text: dto.prompt,
+    });
 
-      // 添加参考图片
+    // 如果有参考图片，则添加
+    if (hasRefImage) {
       if (dto.refImg) {
         messageContent.push({
           image: dto.refImg,
@@ -692,24 +691,22 @@ export class ChatService {
           image: `data:image/jpeg;base64,${dto.refImgBase64}`,
         });
       }
+    }
 
-      requestBody.input.messages.push({
-        role: "user",
-        content: messageContent,
-      });
+    requestBody.input.messages.push({
+      role: "user",
+      content: messageContent,
+    });
 
+    // 如果使用了参考图片或显式启用了图文混排，则设置 enable_interleave
+    if (enableInterleave || hasRefImage) {
       requestBody.parameters.enable_interleave = true;
-
       if (dto.refMode) {
         requestBody.parameters.ref_mode = dto.refMode;
       }
     } else {
-      // 传统文本生成模式：content 是字符串
-      requestBody.input.messages.push({
-        role: "user",
-        content: dto.prompt,
-      });
-
+      // 纯文本模式也建议使用数组格式，但可以不开启 enable_interleave
+      // 某些模型可能要求即便纯文本也要开启，这里先根据逻辑设置
       requestBody.parameters.enable_interleave = false;
     }
 
