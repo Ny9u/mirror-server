@@ -10,14 +10,14 @@ import { KnowledgeService } from "../knowledge/knowledge.service";
 import { RoleService } from "../role/role.service";
 import {
   ChatDto,
-  ImageData,
-  GenerateImageDto,
-  GenerateImageResponseDto,
+  ImageGenerationDto,
+  ImageGenerationResponseDto,
 } from "./chat.dto";
 import OpenAI from "openai";
 import * as crypto from "crypto";
 import { Observable } from "rxjs";
 import axios from "axios";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // 存储的消息内容片段类型
 interface StoredMessageContentPart {
@@ -25,10 +25,29 @@ interface StoredMessageContentPart {
   data: string;
 }
 
-// 存储的消息格式
+// 存储的图片元数据
+interface StoredImageMetadata {
+  fileName: string;
+  mimeType: string;
+  size: number;
+  width?: number;
+  height?: number;
+  ratio?: string;
+  localPath: string;
+  url: string;
+  uploadedAt: string;
+}
+
+// 图片内容片段类型
+interface ImageContentPart {
+  type: "image";
+  data: StoredImageMetadata;
+}
+
+// 存储的消息格式（支持图片）
 interface StoredMessage {
   role: "system" | "user" | "assistant";
-  content: string | StoredMessageContentPart[];
+  content: string | StoredMessageContentPart[] | ImageContentPart[];
   key?: string;
   time?: string;
   reasoning_content?: string;
@@ -78,42 +97,84 @@ interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string | MessageContentPart[];
   reasoning_content?: string;
+  images?: string[];
 }
 
-// 阿里云图片生成 API 响应类型
-interface AliyunImageGenerationResponse {
+// 阿里云通义万相 API 响应类型
+interface AliyunImageResponse {
   output?: {
-    task_id?: string;
-    task_status?: "SUCCEEDED" | "FAILED" | "PENDING" | "RUNNING";
-    results?: Array<{
-      url?: string;
-      seed?: number;
+    choices?: Array<{
+      finish_reason?: string;
+      message?: {
+        role?: string;
+        content?: Array<{
+          image?: string;
+        }>;
+      };
     }>;
-    message?: string;
+    task_metric?: {
+      TOTAL?: number;
+      FAILED?: number;
+      SUCCEEDED?: number;
+    };
+  };
+  usage?: {
+    width?: number;
+    height?: number;
+    image_count?: number;
   };
   message?: string;
-}
-
-// 阿里云任务查询响应类型
-interface AliyunTaskQueryResponse {
-  output?: {
-    task_status?: "SUCCEEDED" | "FAILED" | "PENDING" | "RUNNING";
-    results?: Array<{
-      url?: string;
-      seed?: number;
-    }>;
-    message?: string;
-  };
+  request_id?: string;
 }
 
 @Injectable()
 export class ChatService {
+  private supabase: SupabaseClient | null;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly knowledgeService: KnowledgeService,
     private readonly roleService: RoleService,
-  ) {}
+  ) {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_KEY;
+
+    if (supabaseUrl && supabaseKey) {
+      this.supabase = createClient(supabaseUrl, supabaseKey);
+    } else {
+      this.supabase = null;
+    }
+  }
+
+  private calculateAspectRatio(width: number, height: number): string {
+    const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+    const divisor = gcd(width, height);
+    const simplifiedRatio = `${width / divisor}:${height / divisor}`;
+
+    const commonRatios = [
+      { ratio: "1:1", value: 1 },
+      { ratio: "4:3", value: 4 / 3 },
+      { ratio: "3:4", value: 3 / 4 },
+      { ratio: "16:9", value: 16 / 9 },
+      { ratio: "9:16", value: 9 / 16 },
+    ];
+
+    const targetRatio = width / height;
+
+    let closestRatio = simplifiedRatio;
+    let minDifference = Infinity;
+
+    for (const common of commonRatios) {
+      const difference = Math.abs(common.value - targetRatio);
+      if (difference < minDifference) {
+        minDifference = difference;
+        closestRatio = common.ratio;
+      }
+    }
+
+    return closestRatio;
+  }
 
   async chatStream(
     userId: number | undefined,
@@ -242,26 +303,46 @@ export class ChatService {
               ) {
                 let combinedContent = "";
                 let reasoningContent = "";
-                storedMsg.content.forEach((part) => {
+                const imageUrls: string[] = [];
+                const contentParts = storedMsg.content as unknown as (
+                  | StoredMessageContentPart
+                  | ImageContentPart
+                )[];
+                contentParts.forEach((part) => {
                   if (part.type === "thinking") reasoningContent += part.data;
                   if (part.type === "content") combinedContent += part.data;
+                  if (part.type === "image") {
+                    const imagePart = part as unknown as ImageContentPart;
+                    imageUrls.push(imagePart.data.url);
+                  }
                 });
                 messages.push({
                   role: "assistant",
                   content: combinedContent,
                   reasoning_content: reasoningContent || undefined,
+                  images: imageUrls.length > 0 ? imageUrls : undefined,
                 });
               } else if (
                 storedMsg.role === "user" &&
                 Array.isArray(storedMsg.content)
               ) {
                 let combinedContent = "";
-                storedMsg.content.forEach((part) => {
+                const imageUrls: string[] = [];
+                const contentParts = storedMsg.content as unknown as (
+                  | StoredMessageContentPart
+                  | ImageContentPart
+                )[];
+                contentParts.forEach((part) => {
                   if (part.type === "content") combinedContent += part.data;
+                  if (part.type === "image") {
+                    const imagePart = part as unknown as ImageContentPart;
+                    imageUrls.push(imagePart.data.url);
+                  }
                 });
                 messages.push({
                   role: "user",
                   content: combinedContent,
+                  images: imageUrls.length > 0 ? imageUrls : undefined,
                 });
               } else if (
                 typeof storedMsg.content === "string" &&
@@ -606,176 +687,317 @@ export class ChatService {
   }
 
   /**
-   * 生成图片（阿里云百炼/DashScope API）
+   * 下载并保存图片到云存储
+   * @param imageUrl 远程图片URL
+   * @param chatId 对话ID（用于子目录命名）
+   * @returns 图片元数据
+   */
+  private async downloadAndSaveImage(
+    imageUrl: string,
+    chatId: string,
+  ): Promise<StoredImageMetadata> {
+    const response = await axios.get(imageUrl, {
+      responseType: "arraybuffer",
+    });
+
+    const buffer = Buffer.from(response.data);
+    const contentType = response.headers["content-type"] as string | undefined;
+    const mimeType = contentType || "image/jpeg";
+    const extension = mimeType.split("/")[1] || "jpg";
+    const fileName = `${crypto.randomBytes(16).toString("hex")}.${extension}`;
+
+    let width: number | undefined;
+    let height: number | undefined;
+    try {
+      const sharpModule = await import("sharp");
+      const metadata = await sharpModule.default(buffer).metadata();
+      width = metadata.width;
+      height = metadata.height;
+    } catch {
+      // 忽略尺寸获取错误
+    }
+
+    const ratio =
+      width && height ? this.calculateAspectRatio(width, height) : undefined;
+
+    if (!this.supabase) {
+      throw new Error("Supabase 未配置，无法上传图片");
+    }
+
+    const { data, error } = await this.supabase.storage
+      .from("mirror")
+      .upload(`${chatId}/${fileName}`, buffer, {
+        contentType: mimeType,
+        upsert: false,
+      });
+
+    if (error) {
+      throw new Error(`上传图片到云存储失败: ${error.message}`);
+    }
+
+    const {
+      data: { publicUrl },
+    } = this.supabase.storage.from("mirror").getPublicUrl(data.path);
+
+    return {
+      fileName,
+      mimeType,
+      size: buffer.length,
+      width,
+      height,
+      ratio,
+      localPath: data.path,
+      url: publicUrl,
+      uploadedAt: this.formatChineseTime(new Date()),
+    };
+  }
+
+  /**
+   * 图片生成
    * @param userId 用户 ID
    * @param dto 图片生成参数
-   * @returns 生成的图片 URL
+   * @returns 生成的图片 URL 和对话ID
    */
   async generateImage(
     userId: number | undefined,
-    dto: GenerateImageDto,
-  ): Promise<GenerateImageResponseDto> {
-    // 1. 获取用户配置的阿里云 API Key
-    const modelConfig = userId
-      ? await this.prisma.modelConfig.findUnique({
-          where: { userId },
-        })
-      : null;
+    dto: ImageGenerationDto,
+  ): Promise<ImageGenerationResponseDto> {
+    const modelConfig =
+      userId && dto.userId
+        ? await this.prisma.modelConfig.findUnique({
+            where: { userId: dto.userId },
+          })
+        : null;
 
-    // 优先使用用户配置的 API Key，否则使用默认配置
     const apiKey =
       modelConfig?.apiKey || this.configService.get<string>("DEFAULT_API_KEY");
 
     if (!apiKey) {
-      throw new BadRequestException("未配置阿里云 API Key");
+      throw new BadRequestException("未配置 API Key");
     }
 
-    // 2. 构建请求参数
-    const model = dto.model || "wanx-v1";
-    const size = dto.size || "1024*1024";
-    const n = dto.n || 1;
+    let chatId = dto.chatId;
+    let isNewConversation = false;
+    const effectiveUserId = dto.userId || userId;
 
-    // 判断是否有参考图片（图文混排模式）
-    const hasRefImage = !!(dto.refImg || dto.refImgBase64);
-    const enableInterleave = dto.enableInterleave ?? hasRefImage;
+    if (effectiveUserId) {
+      if (chatId) {
+        const conversation = await this.prisma.userConversation.findUnique({
+          where: { id: chatId },
+        });
 
-    // 构建请求体
+        if (!conversation) {
+          throw new NotFoundException("对话不存在");
+        }
+
+        if (conversation.userId !== effectiveUserId) {
+          throw new UnauthorizedException("无权访问该对话");
+        }
+
+        if (dto.isRegenerate) {
+          const detail = await this.prisma.conversationDetail.findFirst({
+            where: { conversationId: chatId },
+          });
+
+          if (detail && Array.isArray(detail.content)) {
+            const currentContent = detail.content as unknown as StoredMessage[];
+            if (currentContent.length > 0) {
+              let lastIndex = currentContent.length - 1;
+              if (currentContent[lastIndex].role === "assistant") {
+                currentContent.pop();
+                lastIndex--;
+              }
+              if (lastIndex >= 0 && currentContent[lastIndex].role === "user") {
+                currentContent.pop();
+              }
+
+              await this.prisma.conversationDetail.update({
+                where: { id: detail.id },
+                data: {
+                  content: currentContent as unknown as object[],
+                },
+              });
+            }
+          }
+        }
+      } else {
+        chatId = crypto.randomUUID();
+        isNewConversation = true;
+      }
+    } else {
+      chatId = "";
+    }
+
+    const model = dto.model || "qwen-image-max";
+
     const requestBody: {
       model: string;
       input: {
         messages: Array<{
           role: string;
-          content: Array<{ text?: string; image?: string }> | string;
+          content: Array<{ text: string }>;
         }>;
       };
-      parameters: {
-        size: string;
-        n: number;
-        seed?: number;
-        ref_mode?: string;
+      parameters?: {
+        size?: string;
         negative_prompt?: string;
         prompt_extend?: boolean;
         watermark?: boolean;
-        enable_interleave?: boolean;
       };
     } = {
       model,
       input: {
-        messages: [],
-      },
-      parameters: {
-        size,
-        n,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                text: `请根据以下描述生成图片：${dto.prompt}`,
+              },
+            ],
+          },
+        ],
       },
     };
 
-    // 统一使用数组格式构建 content，以满足 API 要求
-    const messageContent: Array<{
-      text?: string;
-      image?: string;
-    }> = [];
+    if (dto.negative_prompt || dto.size || dto.prompt_extend || dto.watermark) {
+      requestBody.parameters = {};
 
-    // 添加文本提示词
-    messageContent.push({
-      text: dto.prompt,
-    });
-
-    // 如果有参考图片，则添加
-    if (hasRefImage) {
-      if (dto.refImg) {
-        messageContent.push({
-          image: dto.refImg,
-        });
-      } else if (dto.refImgBase64) {
-        messageContent.push({
-          image: `data:image/jpeg;base64,${dto.refImgBase64}`,
-        });
+      if (dto.negative_prompt) {
+        requestBody.parameters.negative_prompt = dto.negative_prompt;
       }
-    }
 
-    requestBody.input.messages.push({
-      role: "user",
-      content: messageContent,
-    });
-
-    // 如果使用了参考图片或显式启用了图文混排，则设置 enable_interleave
-    if (enableInterleave || hasRefImage) {
-      requestBody.parameters.enable_interleave = true;
-      if (dto.refMode) {
-        requestBody.parameters.ref_mode = dto.refMode;
+      if (dto.size) {
+        requestBody.parameters.size = dto.size;
       }
-    } else {
-      // 纯文本模式也建议使用数组格式，但可以不开启 enable_interleave
-      // 某些模型可能要求即便纯文本也要开启，这里先根据逻辑设置
-      requestBody.parameters.enable_interleave = false;
-    }
 
-    // 添加通用可选参数
-    if (dto.negativePrompt) {
-      requestBody.parameters.negative_prompt = dto.negativePrompt;
-    }
+      if (dto.prompt_extend) {
+        requestBody.parameters.prompt_extend = dto.prompt_extend;
+      }
 
-    if (dto.seed !== undefined) {
-      requestBody.parameters.seed = dto.seed;
-    }
-
-    if (dto.promptExtend !== undefined) {
-      requestBody.parameters.prompt_extend = dto.promptExtend;
-    }
-
-    if (dto.watermark !== undefined) {
-      requestBody.parameters.watermark = dto.watermark;
+      if (dto.watermark) {
+        requestBody.parameters.watermark = dto.watermark;
+      }
     }
 
     try {
-      // 3. 调用阿里云 DashScope API
-      const response = await axios.post<AliyunImageGenerationResponse>(
-        "https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation",
+      const response = await axios.post<AliyunImageResponse>(
+        "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
         requestBody,
         {
           headers: {
             Authorization: `Bearer ${apiKey}`,
             "Content-Type": "application/json",
-            "X-DashScope-Async": "enable", // 异步任务
           },
-          timeout: 60000, // 60秒超时
+          timeout: 0,
         },
       );
 
-      // 4. 处理响应
       const data = response.data;
 
-      if (data.output?.task_status === "SUCCEEDED") {
-        // 同步返回成功
-        const imageUrl = data.output.results?.[0]?.url;
-        if (!imageUrl) {
+      if (data.output?.choices && data.output.choices.length > 0) {
+        const choice = data.output.choices[0];
+        const imageContent = choice.message?.content?.[0];
+        const remoteImageUrl = imageContent?.image;
+
+        if (!remoteImageUrl) {
           throw new BadRequestException("图片生成成功但未返回 URL");
         }
 
-        return {
-          url: imageUrl,
-          taskId: data.output.task_id,
-          seed: data.output.results?.[0]?.seed,
-        };
-      } else if (
-        data.output?.task_status === "PENDING" ||
-        data.output?.task_id
-      ) {
-        // 异步任务，需要轮询查询结果
-        const taskId = data.output.task_id;
-        if (!taskId) {
-          throw new BadRequestException("未返回任务 ID");
+        const imageMetadata =
+          effectiveUserId && chatId
+            ? await this.downloadAndSaveImage(remoteImageUrl, chatId)
+            : null;
+
+        if (effectiveUserId && chatId && imageMetadata) {
+          const userMessage: StoredMessage = {
+            role: "user",
+            content: [
+              {
+                type: "content",
+                data: dto.prompt,
+              },
+            ],
+            key: this.getRandomKey(),
+            time: this.formatChineseTime(new Date()),
+          };
+
+          const assistantMessage: StoredMessage = {
+            role: "assistant",
+            content: [
+              {
+                type: "image",
+                data: imageMetadata,
+              },
+            ],
+            key: this.getRandomKey(),
+            time: this.formatChineseTime(new Date()),
+          };
+
+          if (isNewConversation) {
+            await this.prisma.userConversation.create({
+              data: {
+                id: chatId,
+                userId: effectiveUserId,
+                title: dto.prompt.substring(0, 30) || "图片生成",
+              },
+            });
+          }
+
+          const existingDetail = await this.prisma.conversationDetail.findFirst(
+            {
+              where: { conversationId: chatId },
+            },
+          );
+
+          const newMessages: StoredMessage[] = [userMessage, assistantMessage];
+
+          if (existingDetail) {
+            const currentContent = Array.isArray(existingDetail.content)
+              ? (existingDetail.content as unknown as StoredMessage[])
+              : [existingDetail.content as unknown as StoredMessage];
+
+            await this.prisma.conversationDetail.update({
+              where: { id: existingDetail.id },
+              data: {
+                content: [
+                  ...currentContent,
+                  ...newMessages,
+                ] as unknown as object[],
+              },
+            });
+          } else {
+            await this.prisma.conversationDetail.create({
+              data: {
+                conversationId: chatId,
+                content: newMessages as unknown as object[],
+              },
+            });
+          }
+
+          if (!isNewConversation) {
+            await this.prisma.userConversation.update({
+              where: { id: chatId },
+              data: { updatedAt: new Date() },
+            });
+          }
         }
-        return await this.pollImageGenerationTask(apiKey, taskId);
+
+        const imageUrl = imageMetadata?.url || remoteImageUrl;
+
+        return {
+          chatId: chatId || "",
+          url: imageUrl,
+          requestId: data.request_id,
+        };
       } else {
-        // 错误响应
-        const errorMessage = data.message || "图片生成失败";
-        throw new BadRequestException(`阿里云 API 错误: ${errorMessage}`);
+        const errorMessage = data.message || "响应格式异常";
+        throw new BadRequestException(`图片生成失败: ${errorMessage}`);
       }
-    } catch (error: unknown) {
+    } catch (error) {
       if (axios.isAxiosError(error)) {
         const errorData = error.response?.data as
-          | AliyunImageGenerationResponse
+          | AliyunImageResponse
           | undefined;
         const errorMessage = errorData?.message || error.message;
         const statusCode = error.response?.status;
@@ -787,72 +1009,5 @@ export class ChatService {
         `图片生成失败: ${error instanceof Error ? error.message : "未知错误"}`,
       );
     }
-  }
-
-  /**
-   * 轮询查询异步图片生成任务状态
-   * @param apiKey API Key
-   * @param taskId 任务 ID
-   * @returns 生成的图片 URL
-   */
-  private async pollImageGenerationTask(
-    apiKey: string,
-    taskId: string,
-  ): Promise<GenerateImageResponseDto> {
-    const maxRetries = 30; // 最多轮询 30 次
-    const retryInterval = 2000; // 每 2 秒轮询一次
-
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        const response = await axios.get<AliyunTaskQueryResponse>(
-          `https://dashscope.aliyuncs.com/api/v1/tasks/${taskId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-            },
-          },
-        );
-
-        const data = response.data;
-        const status = data.output?.task_status;
-
-        if (status === "SUCCEEDED") {
-          if (!data.output) {
-            throw new BadRequestException("响应数据格式错误");
-          }
-          const imageUrl = data.output.results?.[0]?.url;
-          if (!imageUrl) {
-            throw new BadRequestException("图片生成成功但未返回 URL");
-          }
-
-          return {
-            url: imageUrl,
-            taskId,
-            seed: data.output.results?.[0]?.seed,
-          };
-        } else if (status === "FAILED") {
-          const errorMessage = data.output?.message || "任务失败";
-          throw new BadRequestException(`图片生成失败: ${errorMessage}`);
-        } else if (status === "PENDING" || status === "RUNNING") {
-          // 继续等待
-          await new Promise((resolve) => setTimeout(resolve, retryInterval));
-        } else {
-          throw new BadRequestException(
-            `未知任务状态: ${status ?? "undefined"}`,
-          );
-        }
-      } catch (error: unknown) {
-        if (axios.isAxiosError(error)) {
-          const errorData = error.response?.data as
-            | AliyunTaskQueryResponse
-            | undefined;
-          const errorMessage = errorData?.output?.message || error.message;
-          throw new BadRequestException(`查询任务状态失败: ${errorMessage}`);
-        }
-        throw error;
-      }
-    }
-
-    throw new BadRequestException("图片生成超时，请稍后重试");
   }
 }

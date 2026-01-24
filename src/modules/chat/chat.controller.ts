@@ -20,7 +20,13 @@ import {
   ApiConsumes,
 } from "@nestjs/swagger";
 import { ChatService } from "./chat.service";
-import { ChatDto, ImageData, FileData, GenerateImageDto, GenerateImageResponseDto } from "./chat.dto";
+import {
+  ChatDto,
+  ImageData,
+  FileData,
+  ImageGenerationDto,
+  ImageGenerationResponseDto,
+} from "./chat.dto";
 import { Response, Request as ExpressRequest } from "express";
 import { AuthGuard } from "@nestjs/passport";
 import { UserDto } from "../user/user.dto";
@@ -43,7 +49,7 @@ interface SseEvent {
 export class OptionalJwtAuthGuard extends AuthGuard("jwt") {
   handleRequest<UserDto>(
     _err: Error | null,
-    user: UserDto | false
+    user: UserDto | false,
   ): UserDto | null {
     // 如果有错误或没有用户，不抛出异常，只返回 null
     // 这样 req.user 在未登录时为 undefined，在已登录时为用户信息
@@ -62,7 +68,7 @@ export class ChatController {
     FileFieldsInterceptor([
       { name: "images", maxCount: 10 }, // 最多 10 张图片
       { name: "files", maxCount: 5 }, // 最多 5 个文件
-    ])
+    ]),
   )
   @HttpCode(HttpStatus.OK)
   @ApiConsumes("multipart/form-data")
@@ -78,7 +84,7 @@ export class ChatController {
     uploadedFiles?: {
       images?: Express.Multer.File[];
       files?: Express.Multer.File[];
-    }
+    },
   ): Promise<void> {
     const userId = req.user?.id;
 
@@ -140,7 +146,7 @@ export class ChatController {
                     extractedText = extracted.getBody() || "";
                   } catch {
                     throw new BadRequestException(
-                      "Word 文件解析失败：文件格式可能已损坏，或者不是有效的 .doc/.docx 文档"
+                      "Word 文件解析失败：文件格式可能已损坏，或者不是有效的 .doc/.docx 文档",
                     );
                   }
                 }
@@ -158,7 +164,7 @@ export class ChatController {
               mimeType: file.mimetype,
               size: file.size,
             };
-          })
+          }),
         );
 
         const existingFiles =
@@ -202,17 +208,17 @@ export class ChatController {
   @Post("generate-image")
   @UseGuards(OptionalJwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "生成图片（阿里云百炼，支持图文混排）" })
+  @ApiOperation({ summary: "通义万相图片生成（同步调用）" })
   @ApiResponse({
     status: 200,
     description: "图片生成成功",
-    type: GenerateImageResponseDto
+    type: ImageGenerationResponseDto,
   })
-  @ApiResponse({ status: 400, description: "请求参数错误或 API Key 配置缺失" })
+  @ApiResponse({ status: 400, description: "请求参数错误或生成失败" })
   async generateImage(
     @Request() req: AuthenticatedRequest,
-    @Body() dto: GenerateImageDto
-  ): Promise<GenerateImageResponseDto> {
+    @Body() dto: ImageGenerationDto,
+  ): Promise<ImageGenerationResponseDto> {
     const userId = req.user?.id;
     return await this.chatService.generateImage(userId, dto);
   }

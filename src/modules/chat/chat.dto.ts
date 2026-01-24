@@ -132,132 +132,104 @@ export class ChatResponseDto {
   chatId: string;
 }
 
-// 图片生成请求 DTO
-export class GenerateImageDto {
+// 图片生成 DTO
+export class ImageGenerationDto {
   @ApiProperty({
-    description: "图片描述提示词",
-    example: "一只可爱的小猫在花园里玩耍"
+    description:
+      "对话ID，首次调用时不传，后端生成并返回，后续调用带上以维持上下文",
+    example: "conv_123456",
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
-  prompt: string;
+  @IsOptional()
+  chatId?: string;
+
+  @ApiProperty({
+    description: "用户ID",
+    example: 1,
+    required: false,
+  })
+  @IsNumber()
+  @IsOptional()
+  userId?: number;
+
+  @ApiProperty({
+    description: "是否是重新生成",
+    example: false,
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isRegenerate?: boolean;
 
   @ApiProperty({
     description: "模型名称",
-    example: "wanx-v1",
+    example: "qwen-image-max",
     required: false,
-    default: "wanx-v1"
   })
   @IsString()
   @IsOptional()
   model?: string;
 
   @ApiProperty({
-    description: "图片尺寸",
-    example: "1024*1024",
+    description: "图片描述文本",
+    example: "一副典雅庄重的对联",
+  })
+  @IsString()
+  @IsNotEmpty()
+  prompt: string;
+
+  @ApiProperty({
+    description: "负面提示词，描述不希望出现的内容",
+    example: "低分辨率，低画质，肢体畸形",
     required: false,
-    enum: ["1024*1024", "720*1280", "1280*720"],
-    default: "1024*1024"
+  })
+  @IsString()
+  @IsOptional()
+  negative_prompt?: string;
+
+  @ApiProperty({
+    description: "图片尺寸",
+    example: "1664*928",
+    required: false,
   })
   @IsString()
   @IsOptional()
   size?: string;
 
   @ApiProperty({
-    description: "负面提示词（描述不希望出现的内容）",
-    example: "低质量,模糊,变形",
-    required: false
-  })
-  @IsString()
-  @IsOptional()
-  negativePrompt?: string;
-
-  @ApiProperty({
-    description: "参考图片 URL（图文混排）",
-    example: "https://example.com/reference.jpg",
-    required: false
-  })
-  @IsString()
-  @IsOptional()
-  refImg?: string;
-
-  @ApiProperty({
-    description: "参考图片 Base64（图文混排）",
-    required: false
-  })
-  @IsString()
-  @IsOptional()
-  refImgBase64?: string;
-
-  @ApiProperty({
-    description: "参考模式（repaint: 重绘, refonly: 仅参考）",
-    example: "refonly",
-    required: false,
-    enum: ["repaint", "refonly"]
-  })
-  @IsString()
-  @IsOptional()
-  refMode?: string;
-
-  @ApiProperty({
-    description: "生成图片数量",
-    example: 1,
-    required: false,
-    default: 1,
-    minimum: 1,
-    maximum: 4
-  })
-  @IsNumber()
-  @IsOptional()
-  n?: number;
-
-  @ApiProperty({
-    description: "随机种子（用于复现结果）",
-    required: false
-  })
-  @IsNumber()
-  @IsOptional()
-  seed?: number;
-
-  @ApiProperty({
     description: "是否扩展提示词",
     example: true,
     required: false,
-    default: false
   })
   @IsBoolean()
   @IsOptional()
-  promptExtend?: boolean;
+  prompt_extend?: boolean;
 
   @ApiProperty({
     description: "是否添加水印",
     example: false,
     required: false,
-    default: false
   })
   @IsBoolean()
   @IsOptional()
   watermark?: boolean;
-
-  @ApiProperty({
-    description: "是否启用图文混排（用于参考图片生成）",
-    example: true,
-    required: false,
-    default: false
-  })
-  @IsBoolean()
-  @IsOptional()
-  enableInterleave?: boolean;
 }
 
 // 图片生成响应 DTO
-export class GenerateImageResponseDto {
+export class ImageGenerationResponseDto {
+  @ApiProperty({ description: "对话ID" })
+  chatId: string;
+
   @ApiProperty({ description: "生成的图片 URL" })
   url: string;
 
-  @ApiProperty({ description: "任务ID", required: false })
-  taskId?: string;
+  @ApiProperty({ description: "图片宽度", required: false })
+  width?: number;
 
-  @ApiProperty({ description: "使用的随机种子", required: false })
-  seed?: number;
+  @ApiProperty({ description: "图片高度", required: false })
+  height?: number;
+
+  @ApiProperty({ description: "请求 ID", required: false })
+  requestId?: string;
 }
