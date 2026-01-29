@@ -530,30 +530,6 @@ export class ChatService {
               assistantContent.push({ type: "content", data: fullReply });
             }
 
-            // 如果是新对话，先创建对话记录并生成标题
-            if (isNewConversation) {
-              // 异步生成标题，不阻塞
-              const title = await this.generateConversationTitle(
-                apiKey,
-                baseURL,
-                modelName,
-                dto.content,
-              );
-              await this.prisma.userConversation.create({
-                data: {
-                  id: chatId,
-                  userId: userId,
-                  title: title,
-                },
-              });
-            }
-
-            // 获取已有的对话详情
-            const existingDetail =
-              await this.prisma.conversationDetail.findFirst({
-                where: { conversationId: chatId },
-              });
-
             const newMessages: StoredMessage[] = [
               {
                 role: "user",
@@ -570,37 +546,62 @@ export class ChatService {
               },
             ];
 
-            if (existingDetail) {
-              const currentContent = Array.isArray(existingDetail.content)
-                ? (existingDetail.content as unknown as StoredMessage[])
-                : [existingDetail.content as unknown as StoredMessage];
+            // 优化：使用事务批量处理所有数据库写入操作，减少阻塞
+            await this.prisma.$transaction(async (tx) => {
+              // 如果是新对话，先创建对话记录并生成标题
+              if (isNewConversation) {
+                const title = await this.generateConversationTitle(
+                  apiKey,
+                  baseURL,
+                  modelName,
+                  dto.content,
+                );
+                await tx.userConversation.create({
+                  data: {
+                    id: chatId,
+                    userId: userId,
+                    title: title,
+                  },
+                });
+              }
 
-              await this.prisma.conversationDetail.update({
-                where: { id: existingDetail.id },
-                data: {
-                  content: [
-                    ...currentContent,
-                    ...newMessages,
-                  ] as unknown as object[],
-                },
+              // 获取已有的对话详情
+              const existingDetail = await tx.conversationDetail.findFirst({
+                where: { conversationId: chatId },
               });
-            } else {
-              // 如果不存在，则创建新记录
-              await this.prisma.conversationDetail.create({
-                data: {
-                  conversationId: chatId,
-                  content: newMessages as unknown as object[],
-                },
-              });
-            }
 
-            // 更新对话最后活跃时间
-            if (!isNewConversation) {
-              await this.prisma.userConversation.update({
-                where: { id: chatId },
-                data: { updatedAt: new Date() },
-              });
-            }
+              if (existingDetail) {
+                const currentContent = Array.isArray(existingDetail.content)
+                  ? (existingDetail.content as unknown as StoredMessage[])
+                  : [existingDetail.content as unknown as StoredMessage];
+
+                await tx.conversationDetail.update({
+                  where: { id: existingDetail.id },
+                  data: {
+                    content: [
+                      ...currentContent,
+                      ...newMessages,
+                    ] as unknown as object[],
+                  },
+                });
+              } else {
+                // 如果不存在，则创建新记录
+                await tx.conversationDetail.create({
+                  data: {
+                    conversationId: chatId,
+                    content: newMessages as unknown as object[],
+                  },
+                });
+              }
+
+              // 更新对话最后活跃时间
+              if (!isNewConversation) {
+                await tx.userConversation.update({
+                  where: { id: chatId },
+                  data: { updatedAt: new Date() },
+                });
+              }
+            });
           }
 
           subscriber.complete();

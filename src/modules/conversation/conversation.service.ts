@@ -6,10 +6,24 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { SaveConversationDto } from "./conversation.dto";
 import * as crypto from "crypto";
+import { Prisma } from "@prisma/client";
 
 // 对话内容项接口
 interface ConversationContentItem {
   conversationId?: string;
+}
+
+// 对话列表项类型（导出供 controller 使用）
+export interface ConversationListItem {
+  id: string;
+  title: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// 带详情的对话列表项类型（导出供 controller 使用）
+export interface ConversationWithDetails extends ConversationListItem {
+  content: Prisma.JsonValue[];
 }
 
 @Injectable()
@@ -29,7 +43,9 @@ export class ConversationService {
     return crypto.createHash("sha256").update(hashInput).digest("hex");
   }
 
-  async saveConversation(dto: SaveConversationDto) {
+  async saveConversation(
+    dto: SaveConversationDto
+  ): Promise<{ success: boolean; conversationId: string }> {
     let currentConversationId: string;
 
     if (dto.conversationId) {
@@ -104,42 +120,78 @@ export class ConversationService {
     return { success: true, conversationId: currentConversationId };
   }
 
-  async getConversations(userId: number, includeDetails?: boolean) {
+  async getConversations(
+    userId: number,
+    includeDetails?: boolean
+  ): Promise<{
+    success: boolean;
+    conversations: (ConversationListItem | ConversationWithDetails)[];
+  }> {
     const list = await this.prisma.userConversation.findMany({
       where: { userId: Number(userId) },
       orderBy: { createdAt: "desc" },
       select: { id: true, title: true, createdAt: true, updatedAt: true },
     });
 
-    if (includeDetails) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1);
-
-      const conversationsWithDetails = await Promise.all(
-        list.map(async (conversation) => {
-          if (
-            conversation.updatedAt &&
-            conversation.updatedAt >= today &&
-            conversation.updatedAt < tomorrow
-          ) {
-            const details = await this.getConversationDetails(
-              userId,
-              conversation.id
-            );
-            return { ...conversation, content: details.content };
-          }
-          return conversation;
-        })
-      );
-      return { success: true, conversations: conversationsWithDetails };
+    if (!includeDetails) {
+      return { success: true, conversations: list };
     }
 
-    return { success: true, conversations: list };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    // 优化：筛选出今日更新的对话ID，然后批量查询详情（减少查询次数）
+    const todayConversationIds = list
+      .filter(
+        (conv) =>
+          conv.updatedAt &&
+          conv.updatedAt >= today &&
+          conv.updatedAt < tomorrow
+      )
+      .map((conv) => conv.id);
+
+    // 如果没有今日更新的对话，直接返回
+    if (todayConversationIds.length === 0) {
+      return { success: true, conversations: list };
+    }
+
+    // 批量查询所有今日更新的对话详情（1次查询代替N次）
+    const allDetails = await this.prisma.conversationDetail.findMany({
+      where: { conversationId: { in: todayConversationIds } },
+      orderBy: { createdAt: "asc" },
+      select: { conversationId: true, content: true },
+    });
+
+    // 构建 conversationId -> content[] 的映射
+    const detailsMap = new Map<string, Prisma.JsonValue[]>();
+    allDetails.forEach((detail) => {
+      if (!detailsMap.has(detail.conversationId)) {
+        detailsMap.set(detail.conversationId, []);
+      }
+      detailsMap.get(detail.conversationId)!.push(detail.content);
+    });
+
+    // 为今日更新的对话添加详情
+    const conversationsWithDetails: (
+      | ConversationListItem
+      | ConversationWithDetails
+    )[] = list.map((conversation) => {
+      const details = detailsMap.get(conversation.id);
+      if (details) {
+        return { ...conversation, content: details } as ConversationWithDetails;
+      }
+      return conversation;
+    });
+
+    return { success: true, conversations: conversationsWithDetails };
   }
 
-  async deleteConversation(userId: number, conversationId: string) {
+  async deleteConversation(
+    userId: number,
+    conversationId: string
+  ): Promise<{ success: boolean }> {
     const conversation = await this.prisma.userConversation.findUnique({
       where: { id: conversationId },
     });
@@ -163,7 +215,10 @@ export class ConversationService {
     return { success: true };
   }
 
-  async getConversationDetails(userId: number, conversationId: string) {
+  async getConversationDetails(
+    userId: number,
+    conversationId: string
+  ): Promise<{ success: boolean; content: Prisma.JsonValue[] }> {
     const conversation = await this.prisma.userConversation.findUnique({
       where: { id: conversationId },
     });

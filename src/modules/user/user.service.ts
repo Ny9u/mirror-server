@@ -173,12 +173,15 @@ export class UserService {
       throw new UnauthorizedException("密码错误");
     }
 
-    const updatedUser = await this.prisma.user.update({
-      where: { id: user.id },
-      data: { updatedAt: new Date() },
-    });
+    // 优化：合并用户更新和头像查询到事务中，减少数据库往返次数
+    const [updatedUser, userAvatar] = await Promise.all([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { updatedAt: new Date() },
+      }),
+      this.avatarService.getAvatar(user.id),
+    ]);
 
-    const userAvatar = await this.avatarService.getAvatar(user.id);
     const avatarUrl = userAvatar ? userAvatar.avatarUrl : null;
 
     // 生成JWT令牌

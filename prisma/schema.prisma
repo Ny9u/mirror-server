@@ -36,7 +36,7 @@ model Avatar {
   // 可以显示指定表名 因为默认prisma会将模型名转为小写去进行查询
   @@map("Avatar")
   id    Int  @id
-  avatarUrl String 
+  avatarUrl String
 }
 
 model UserFavorite {
@@ -72,17 +72,20 @@ model UserConversation {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([userId, updatedAt])
+  @@index([userId, createdAt])
 }
 
 model ConversationDetail {
-  @@map("ConversationDetail") 
+  @@map("ConversationDetail")
   id             Int      @id @default(autoincrement())
   conversationId String
   content        Json
   createdAt      DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt      DateTime @updatedAt
 
   @@index([conversationId])
+  @@index([conversationId, createdAt])
 }
 
 model Knowledge {
@@ -100,6 +103,7 @@ model Knowledge {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([userId, fileName])
 }
 
 model UserSession {
@@ -112,17 +116,18 @@ model UserSession {
 
   @@index([userId])
   @@index([refreshToken])
+  @@index([expiresAt])
 }
 
 model Role {
   @@map("Role")
   id          Int      @id @default(autoincrement())
-  name        String   
-  description String?  @db.Text 
+  name        String
+  description String?  @db.Text
   avatar      String?
   avatarColor String?
-  prompt      String   @db.Text 
-  isSystem    Boolean  @default(false) 
+  prompt      String   @db.Text
+  isSystem    Boolean  @default(false)
   userId      Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
