@@ -5,21 +5,37 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateRoleDto, UpdateRoleDto } from "./role.dto";
+import { Role } from "@prisma/client";
 
 @Injectable()
 export class RoleService {
+  private systemRolesCache: Role[] | null = null;
+  private lastCacheTime: number = 0;
+  private readonly CACHE_TTL = 1440 * 60 * 1000;
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**
    * 获取系统预设角色
    */
-  async getSystemRoles() {
-    return this.prisma.role.findMany({
+  async getSystemRoles(): Promise<Role[]> {
+    const now = Date.now();
+    // 如果缓存存在且未过期，直接返回缓存
+    if (this.systemRolesCache && now - this.lastCacheTime < this.CACHE_TTL) {
+      return this.systemRolesCache;
+    }
+
+    const roles = await this.prisma.role.findMany({
       where: { isSystem: true },
       orderBy: { createdAt: "asc" },
     });
-  }
 
+    // 更新缓存
+    this.systemRolesCache = roles;
+    this.lastCacheTime = now;
+
+    return roles;
+  }
   /**
    * 获取用户自定义角色
    */
@@ -154,40 +170,23 @@ export class RoleService {
   async getSelectedRole(userId: number) {
     const userRole = await this.prisma.userRole.findUnique({
       where: { userId: userId },
+      include: {
+        role: true,
+      },
     });
 
-    if (!userRole) {
-      return null;
-    }
-
-    const role = await this.prisma.role.findUnique({
-      where: { id: userRole.roleId },
-    });
-
-    return role;
+    return userRole?.role || null;
   }
 
   /**
    * 清除用户角色选择（恢复默认）
    */
   async clearSelectedRole(userId: number) {
-    const userRole = await this.prisma.userRole.findUnique({
+    await this.prisma.userRole.upsert({
       where: { userId: userId },
+      update: { roleId: 1 },
+      create: { userId: userId, roleId: 1 },
     });
-
-    if (userRole) {
-      await this.prisma.userRole.update({
-        where: { userId: userId },
-        data: { roleId: 1 },
-      });
-    } else {
-      await this.prisma.userRole.create({
-        data: {
-          userId: userId,
-          roleId: 1,
-        },
-      });
-    }
 
     return { message: "已恢复默认角色" };
   }
@@ -196,10 +195,19 @@ export class RoleService {
    * 获取用户当前的系统提示词
    */
   async getUserSystemPrompt(userId: number): Promise<string> {
-    const selectedRole = await this.getSelectedRole(userId);
+    const userRole = await this.prisma.userRole.findUnique({
+      where: { userId: userId },
+      include: {
+        role: {
+          select: {
+            prompt: true,
+          },
+        },
+      },
+    });
 
-    if (selectedRole) {
-      return selectedRole.prompt;
+    if (userRole?.role) {
+      return userRole.role.prompt;
     }
 
     // 返回默认提示词
