@@ -6,6 +6,7 @@ declare module "node-rsa" {
       environment?: string;
     }): void;
     exportKey(format: string): string;
+    encrypt(data: string, encoding?: string): string;
     decrypt(buffer: Buffer, encoding: string): string;
   }
   export = NodeRSA;
